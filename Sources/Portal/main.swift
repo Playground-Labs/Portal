@@ -36,7 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let homeView = NSHostingView(rootView:HomeView(model:model))
         homeView.sizingOptions = []
         home.contentView = homeView
-        home.minSize = NSSize(width:515,height:460)
+        home.minSize = NSSize(width:startingSize.width,height:460)
+        home.maxSize = NSSize(width:startingSize.width,height:home.maxSize.height)
+        home.collectionBehavior = [.fullScreenNone]
         home.setFrame(NSRect(origin:home.frame.origin,size:startingSize),display:false)
         home.center(); showHome(); NSApp.activate(ignoringOtherApps:true)
     }
