@@ -61,8 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
                     .frame(width:32,height:32).contentShape(Rectangle())
             }.buttonStyle(.plain).foregroundStyle(.secondary).modifier(ControlHover())
                 .help("Add computer (⌘N)").accessibilityLabel("Add computer")
+                .frame(height:42,alignment:.bottom)
         })
-        button.frame.size = NSSize(width:32,height:32)
+        button.frame.size = NSSize(width:32,height:42)
         item.view = button
         return item
     }
