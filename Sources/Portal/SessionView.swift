@@ -54,14 +54,14 @@ struct SessionView: View {
                 Divider()
                 Picker("Image quality",selection:$session.computer.quality) { ForEach(ImageQuality.allCases,id:\.self) { Text($0.rawValue.capitalized).tag($0) } }
                 Button(fullscreen ? "Exit Fullscreen" : "Enter Fullscreen") { session.window?.toggleFullScreen(nil) }
-            } label: { Image(systemName:"display").frame(width:26,height:28) }.fixedSize().menuIndicator(.hidden).frame(width:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Display").accessibilityLabel("Display controls")
+            } label: { Image(systemName:"display").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Display").accessibilityLabel("Display controls")
             Menu {
                 if session.audioAvailable {
                     Toggle("Play Remote Audio",isOn:Binding(get:{ session.computer.audioEnabled },set:session.setAudio))
                     Menu("Volume") { ForEach([25,50,75,100],id:\.self) { volume in Button("\(volume)%") { session.computer.volume = Float(volume)/100; session.updatePreferences() } } }
                     if !session.audioError.isEmpty { Text(session.audioError) }
                 } else { Text("Audio unavailable"); Text("This server does not provide compatible audio.") }
-            } label: { Image(systemName:session.audioAvailable && session.computer.audioEnabled ? "speaker.wave.2" : "speaker.slash").frame(width:26,height:28) }.fixedSize().menuIndicator(.hidden).frame(width:32).modifier(ControlHover()).foregroundStyle(.secondary).help(session.audioAvailable ? "Sound" : "Audio unavailable on this server").accessibilityLabel("Sound controls")
+            } label: { Image(systemName:session.audioAvailable && session.computer.audioEnabled ? "speaker.wave.2" : "speaker.slash").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help(session.audioAvailable ? "Sound" : "Audio unavailable on this server").accessibilityLabel("Sound controls")
             Menu {
                 Text(session.status)
                 Text(session.computer.address)
@@ -81,8 +81,8 @@ struct SessionView: View {
                 Divider()
                 Button("Reconnect") { session.start() }
                 Button("Disconnect") { session.window?.close() }
-            } label: { Image(systemName:"ellipsis").frame(width:26,height:28) }.fixedSize().menuIndicator(.hidden).frame(width:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Session").accessibilityLabel("Session controls")
-        }.menuStyle(.borderlessButton).fixedSize(horizontal:false,vertical:true).padding(.trailing,14).frame(height:44).background(Color.portalBackground)
+            } label: { Image(systemName:"ellipsis").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Session").accessibilityLabel("Session controls")
+        }.menuStyle(.button).buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,14).frame(height:44).background(Color.portalBackground)
         .onHover { over in if fullscreen && hideToolbar && !over { DispatchQueue.main.asyncAfter(deadline:.now()+1) { revealControls = false } } }
         .onChange(of:session.computer.sizing) { _,_ in session.updatePreferences() }
         .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }

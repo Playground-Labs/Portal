@@ -110,7 +110,7 @@ struct HomeView: View {
             Spacer()
             if computer.ssh.enabled { Image(systemName:"lock.shield").font(.system(size:12)).foregroundStyle(.secondary).help("Connects through SSH") }
             Button("Connect") { model.connect(computer) }.buttonStyle(SoftButton(primary:selected == computer.id))
-            Menu { if saved { Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").frame(width:20,height:28) }.menuStyle(.borderlessButton).fixedSize().modifier(ControlHover()).accessibilityLabel("Computer actions")
+            Menu { if saved { Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width:32,height:32).modifier(ControlHover()).accessibilityLabel("Computer actions")
         }.padding(.horizontal,14).frame(height:66).contentShape(Rectangle()).background(selected == computer.id ? Color.portalAccent.opacity(0.06) : .clear).onTapGesture(count:2) { model.connect(computer) }.onTapGesture { selected = computer.id }
     }
     private func quickConnect() {

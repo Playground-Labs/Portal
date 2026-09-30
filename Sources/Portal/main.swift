@@ -55,10 +55,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let item = NSToolbarItem(itemIdentifier:identifier)
         item.label = "Add Computer"
         item.toolTip = "Add computer (⌘N)"
-        item.image = NSImage(systemSymbolName:"plus",accessibilityDescription:"Add computer")
-        item.target = self
-        item.action = #selector(addComputer)
-        item.isBordered = false
+        let button = NSHostingView(rootView: PortalAppearance {
+            Button { [weak self] in self?.addComputer() } label: {
+                Image(systemName:"plus").font(.system(size:18,weight:.regular))
+                    .frame(width:32,height:32).contentShape(Rectangle())
+            }.buttonStyle(.plain).foregroundStyle(.secondary).modifier(ControlHover())
+                .help("Add computer (⌘N)").accessibilityLabel("Add computer")
+        })
+        button.frame.size = NSSize(width:32,height:32)
+        item.view = button
         return item
     }
     @objc func showHome() { home?.makeKeyAndOrderFront(nil) }
