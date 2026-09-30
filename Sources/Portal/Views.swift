@@ -6,6 +6,25 @@ extension Color {
     static let portalAccent = Color(red:0.65,green:0.36,blue:0.07)
     static let portalBackground = Color(nsColor:.windowBackgroundColor)
 }
+struct ControlHover: ViewModifier {
+    var pressed = false
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var enabled
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content
+            .contentShape(RoundedRectangle(cornerRadius:5))
+            .overlay {
+                RoundedRectangle(cornerRadius:5)
+                    .fill((scheme == .dark ? Color.white : Color.black).opacity(enabled ? (pressed ? 0.16 : hovering ? 0.09 : 0) : 0))
+                    .allowsHitTesting(false)
+            }
+            .onHover { hovering = $0 }
+            .animation(reduceMotion ? nil : .easeOut(duration:0.12),value:hovering)
+    }
+}
+
 struct SoftButton: ButtonStyle {
     var primary = false
     @Environment(\.colorScheme) private var scheme
@@ -14,7 +33,7 @@ struct SoftButton: ButtonStyle {
         let dark = scheme == .dark
         let background = primary ? (dark ? Color(red:0.30,green:0.22,blue:0.14) : Color(red:0.96,green:0.90,blue:0.81)) : (dark ? Color(red:0.20,green:0.23,blue:0.21) : Color(red:0.94,green:0.95,blue:0.94))
         let foreground = primary ? (dark ? Color(red:0.95,green:0.79,blue:0.54) : Color(red:0.47,green:0.26,blue:0.04)) : Color.primary
-        configuration.label.font(.system(size:12,weight:.medium)).padding(.horizontal,12).frame(minHeight:30).foregroundStyle(foreground).background(background.opacity(configuration.isPressed ? 0.65 : 1),in:RoundedRectangle(cornerRadius:5)).opacity(enabled ? 1 : 0.45)
+        configuration.label.font(.system(size:12,weight:.medium)).padding(.horizontal,12).frame(minHeight:30).foregroundStyle(foreground).background(background.opacity(configuration.isPressed ? 0.65 : 1),in:RoundedRectangle(cornerRadius:5)).opacity(enabled ? 1 : 0.45).modifier(ControlHover(pressed:configuration.isPressed))
     }
 }
 struct PortalAppearance<Content: View>: View {
@@ -66,7 +85,7 @@ struct HomeView: View {
                     }.padding(32)
                 }
                 Divider().opacity(0.5)
-                HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
+                HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain).padding(.horizontal,8).padding(.vertical,6).modifier(ControlHover()); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
             }.background(Color.portalBackground).ignoresSafeArea(.container,edges:.top)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
@@ -86,7 +105,7 @@ struct HomeView: View {
             Spacer()
             if computer.ssh.enabled { Image(systemName:"lock.shield").font(.system(size:12)).foregroundStyle(.secondary).help("Connects through SSH") }
             Button("Connect") { model.connect(computer) }.buttonStyle(SoftButton(primary:selected == computer.id))
-            Menu { if saved { Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").frame(width:20,height:28) }.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Computer actions")
+            Menu { if saved { Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").frame(width:20,height:28) }.menuStyle(.borderlessButton).fixedSize().modifier(ControlHover()).accessibilityLabel("Computer actions")
         }.padding(.horizontal,14).frame(height:66).contentShape(Rectangle()).background(selected == computer.id ? Color.portalAccent.opacity(0.06) : .clear).onTapGesture(count:2) { model.connect(computer) }.onTapGesture { selected = computer.id }
     }
     private func quickConnect() {
