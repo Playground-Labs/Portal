@@ -6,7 +6,9 @@ Native macOS VNC client, free and open source. The remote computer already has a
 
 [Paper design](https://app.paper.design/file/01KZC7Y4BDGPCKK3CQ7CE96TMH/p-I-0), artboards 01–10. Button direction **B** is selected: 30-point height, 5-point corners, soft amber primary and neutral secondary fills, no button shadows or borders. System typography, balanced list density, light/dark/system appearance. Settings has no ellipsis.
 
-Home contains Quick Connect, saved computers, and separately discovered Bonjour computers. Basic setup asks for name and address, with Advanced disclosure. Credentials are requested only when the server needs them and optionally saved in macOS Keychain.
+Across the whole app, use Notion, Obsidian, and Linear as references for quiet surfaces, restrained typography, compact headers, and consistent controls. Use icons alone only for familiar actions (add, settings, display, sound, more), with tooltips and accessibility labels. Keep text for consequential or ambiguous actions, including Connect, Save, Cancel, trust decisions, and recovery. Avoid decorative action icons, redundant labels, and filler copy.
+
+Home has a native compact toolbar with a Portal title and an icon-only add action. Its starting frame is 515 × 660 points; width is fixed and height can resize. Home contains Quick Connect, saved computers, and separately discovered Bonjour computers. Basic setup asks for name and address, with Advanced disclosure. Credentials are requested only when the server needs them and optionally saved in macOS Keychain.
 
 One native window per active computer. Compact title bar: centered computer name, display/sound/session icons, no persistent bottom status bar. Toolbar hides in fullscreen when configured. Keyboard shortcuts go to the remote computer while captured, with Control–Option–Escape to release and special-key actions in the session menu.
 

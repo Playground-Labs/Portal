@@ -56,20 +56,15 @@ struct HomeView: View {
             VStack(spacing:0) {
                 ScrollView {
                     VStack(alignment:.leading,spacing:26) {
-                        HStack(alignment:.top,spacing:12) {
-                            VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
-                            Spacer(minLength:0)
-                            Button { editing = Computer(name:"",address:"") } label: { Label("Add Computer",systemImage:"plus") }.buttonStyle(SoftButton())
-                        }
+                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
                         HStack(spacing:12) {
-                            Image(systemName:"bolt.horizontal").foregroundStyle(.secondary)
                             TextField("Enter an address to connect",text:$address).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
                             Button("Connect",action:quickConnect).buttonStyle(SoftButton(primary:true)).disabled(address.trimmingCharacters(in:.whitespaces).isEmpty)
                         }.padding(.horizontal,12).frame(height:44).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7)).overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
                         VStack(alignment:.leading,spacing:12) {
                             sectionLabel("SAVED COMPUTERS",count:model.computers.count)
                             if model.computers.isEmpty {
-                                VStack(spacing:12) { Image(systemName:"desktopcomputer").font(.system(size:32,weight:.light)).foregroundStyle(.secondary); Text("Your computers belong here").font(.headline); Text("Save a computer for an effortless return.").foregroundStyle(.secondary); Button("Add Computer") { editing = Computer(name:"",address:"") }.buttonStyle(SoftButton(primary:true)) }.frame(maxWidth:.infinity).padding(.vertical,36)
+                                VStack(spacing:12) { Image(systemName:"desktopcomputer").font(.system(size:32,weight:.light)).foregroundStyle(.secondary); Text("Your computers belong here").font(.headline); Text("Save a computer for an effortless return.").foregroundStyle(.secondary) }.frame(maxWidth:.infinity).padding(.vertical,36)
                             } else {
                                 VStack(spacing:0) { ForEach(model.computers) { computer in
                                     computerRow(computer,saved:true)
@@ -87,7 +82,7 @@ struct HomeView: View {
                     }.padding(32)
                 }
                 Divider().opacity(0.5)
-                HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain).padding(.horizontal,8).padding(.vertical,6).modifier(ControlHover()); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
+                HStack { Button { settings = true } label: { Image(systemName:"gearshape").frame(width:16,height:16) }.buttonStyle(.plain).padding(.horizontal,8).padding(.vertical,6).modifier(ControlHover()).help("Settings (⌘,)").accessibilityLabel("Settings"); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
             }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
@@ -123,15 +118,16 @@ struct ConnectionEditor: View {
     @State private var error = ""
     var body: some View {
         PortalAppearance {
-            VStack(alignment:.leading,spacing:22) {
-                VStack(alignment:.leading,spacing:6) { Text(computer.name.isEmpty ? "Add a computer" : "Edit computer").font(.system(size:20,weight:.semibold)); Text("The details you need. Nothing in the way.").foregroundStyle(.secondary).font(.system(size:12)) }
+            VStack(spacing:0) {
+                ScrollView {
+                    VStack(alignment:.leading,spacing:22) {
+                Text(computer.name.isEmpty ? "New computer" : "Edit computer").font(.system(size:20,weight:.semibold))
                 VStack(alignment:.leading,spacing:14) {
                     field("Name",placeholder:"Studio Mac",text:$computer.name)
                     field("Address",placeholder:"computer.local or 192.168.1.10",text:$computer.address)
                     Text("VNC must be enabled on the remote computer. Add :5901 for a custom port.").font(.system(size:11)).foregroundStyle(.secondary)
                 }
                 DisclosureGroup("Advanced",isExpanded:$advanced) {
-                    ScrollView {
                         VStack(alignment:.leading,spacing:16) {
                             field("Username",placeholder:"Ask when needed",text:$computer.username)
                             Toggle("Connect through SSH",isOn:$computer.ssh.enabled)
@@ -148,11 +144,13 @@ struct ConnectionEditor: View {
                             Toggle("View only",isOn:$computer.viewOnly)
                             Toggle("Play remote audio when available",isOn:$computer.audioEnabled)
                         }.padding(.top,16).padding(.trailing,4)
-                    }.frame(maxHeight:350)
-                }.font(.system(size:12))
+                }.font(.system(size:12)).toggleStyle(.switch).controlSize(.small)
                 if !error.isEmpty { Text(error).foregroundStyle(.red).font(.caption) }
-                HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(SoftButton()).keyboardShortcut(.cancelAction); Button("Save Computer") { do { computer.address = try Endpoint(computer.address).address; if computer.name.trimmingCharacters(in:.whitespaces).isEmpty { computer.name = try Endpoint(computer.address).host }; try computer.validate(); save(computer); dismiss() } catch { self.error = error.localizedDescription } }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }
-            }.padding(28).frame(width:advanced ? 468 : 404)
+                    }.padding(24).frame(maxWidth:.infinity,alignment:.leading)
+                }
+                Divider().opacity(0.5)
+                HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(SoftButton()).keyboardShortcut(.cancelAction); Button("Save") { do { computer.address = try Endpoint(computer.address).address; if computer.name.trimmingCharacters(in:.whitespaces).isEmpty { computer.name = try Endpoint(computer.address).host }; try computer.validate(); save(computer); dismiss() } catch { self.error = error.localizedDescription } }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }.padding(.horizontal,24).padding(.vertical,12)
+            }.frame(width:468,height:560)
         }
     }
     private func field(_ title:String,placeholder:String,text:Binding<String>) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.system(size:12,weight:.medium)); TextField(placeholder,text:text).textFieldStyle(.roundedBorder) } }

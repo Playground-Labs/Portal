@@ -4,7 +4,7 @@ import PortalCore
 
 if CommandLine.arguments.contains("--ssh-askpass") { runAskpass() }
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     let model = AppModel()
     var home: NSWindow!
     func applicationDidFinishLaunching(_ notification:Notification) {
@@ -32,7 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         home = makeWindow(title:"Portal",size:startingSize)
         home.styleMask.remove(.fullSizeContentView)
         home.titleVisibility = .visible
-        home.titlebarAppearsTransparent = false
+        home.titlebarAppearsTransparent = true
+        let toolbar = NSToolbar(identifier:"PortalHomeToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        toolbar.showsBaselineSeparator = false
+        home.toolbar = toolbar
         let homeView = NSHostingView(rootView:HomeView(model:model))
         homeView.sizingOptions = []
         home.contentView = homeView
@@ -41,6 +47,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         home.collectionBehavior = [.fullScreenNone]
         home.setFrame(NSRect(origin:home.frame.origin,size:startingSize),display:false)
         home.center(); showHome(); NSApp.activate(ignoringOtherApps:true)
+    }
+    func toolbarDefaultItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { [.flexibleSpace, NSToolbarItem.Identifier("addComputer")] }
+    func toolbarAllowedItemIdentifiers(_ toolbar:NSToolbar) -> [NSToolbarItem.Identifier] { toolbarDefaultItemIdentifiers(toolbar) }
+    func toolbar(_ toolbar:NSToolbar,itemForItemIdentifier identifier:NSToolbarItem.Identifier,willBeInsertedIntoToolbar flag:Bool) -> NSToolbarItem? {
+        guard identifier.rawValue == "addComputer" else { return nil }
+        let item = NSToolbarItem(itemIdentifier:identifier)
+        item.label = "Add Computer"
+        item.toolTip = "Add computer (⌘N)"
+        item.image = NSImage(systemSymbolName:"plus",accessibilityDescription:"Add computer")
+        item.target = self
+        item.action = #selector(addComputer)
+        item.isBordered = false
+        return item
     }
     @objc func showHome() { home?.makeKeyAndOrderFront(nil) }
     @objc func settings() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalSettings"),object:nil) }
