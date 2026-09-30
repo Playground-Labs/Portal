@@ -19,10 +19,11 @@ final class Session: ObservableObject {
     @Published var captured = false
     @Published var retrying = false
     var save: ((Computer) -> Void)?
-    var window: NSWindow?
+    weak var window: NSWindow?
     let queue = DispatchQueue(label: "app.portal.session", qos: .userInteractive)
     private var client: OpaquePointer?
     private var tunnel: SSHTunnel?
+    private var tunnelReady = false
     private var generation = 0
     private let lock = NSLock()
     private var workerGeneration = 0
@@ -36,39 +37,34 @@ final class Session: ObservableObject {
     private var timer: Timer?
     private var pasteboardCount = NSPasteboard.general.changeCount
     private let audio = AudioPlayer()
-    private let frameGate = DispatchSemaphore(value: 1)
+    private let frameLock = NSLock()
+    private var pendingFrame: (Data, Int, Int, Int)?
+    private var frameDeliveryScheduled = false
     private var resizeWork: DispatchWorkItem?
     private var pendingSize: CGSize?
     init(_ computer: Computer) { self.computer = computer }
     private func isCurrent(_ value: Int) -> Bool { lock.lock(); defer { lock.unlock() }; return generation == value }
     private func advance() -> Int { lock.lock(); defer { lock.unlock() }; generation += 1; return generation }
     func start() {
+        let reconnecting = retrying
         let token = advance()
         pendingSize = nil; status = "Connecting"; error = ""; connected = false; retrying = false; image = nil; audioAvailable = false; canResize = false; screens = []; selectedScreen = nil
         let settings = computer
         queue.async { [self] in
-            cleanup(); workerGeneration = token; cancelledPrompt = false; promptedCredential = false
+            cleanup(); tunnelReady = false; workerGeneration = token; cancelledPrompt = false; promptedCredential = false
             guard isCurrent(token) else { return }
             do {
                 let endpoint = try Endpoint(settings.address)
                 var host = endpoint.host; var port = Int(endpoint.port)
                 if settings.ssh.enabled {
                     let tunnel = SSHTunnel(); self.tunnel = tunnel
-                    port = try tunnel.start(settings.ssh, destination: endpoint, cancelled: { !self.isCurrent(token) }); host = "127.0.0.1"
+                    port = try tunnel.start(settings.ssh, destination: endpoint, cancelled: { !self.isCurrent(token) }); host = "127.0.0.1"; tunnelReady = true
                 }
                 guard isCurrent(token) else { cleanup(); return }
                 var cb = PortalCallbacks(); cb.context = Unmanaged.passUnretained(self).toOpaque()
                 cb.frame = { ctx, bytes, width, height in
                     let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
-                    guard session.frameGate.wait(timeout: .now()) == .success else { return }
-                    // ponytail: upload whole frames; use dirty rectangles if profiling shows this is the bottleneck.
-                    let data = Data(bytes: bytes!, count: Int(width) * Int(height) * 4)
-                    let token = session.workerGeneration
-                    DispatchQueue.main.async {
-                        defer { session.frameGate.signal() }
-                        guard session.isCurrent(token), let provider = CGDataProvider(data: data as CFData) else { return }
-                        session.image = CGImage(width: Int(width), height: Int(height), bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: Int(width)*4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue).union(.byteOrder32Big), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
-                    }
+                    session.receiveFrame(bytes!, width: Int(width), height: Int(height))
                 }
                 cb.clipboard = { ctx, text, length, utf8 in
                     let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
@@ -101,7 +97,7 @@ final class Session: ObservableObject {
                 }
                 guard let vnc = portal_vnc_create(cb) else { throw PortalError(message: "Could not start the connection.") }
                 client = vnc
-                let fingerprint = UserDefaults.standard.string(forKey: "certificate:\(settings.address)") ?? ""
+                let fingerprint = UserDefaults.standard.string(forKey: "certificate:\(settings.destinationIdentity)") ?? ""
                 let success = portal_vnc_connect(vnc, host, Int32(port), settings.ssh.enabled ? 1 : 0, settings.quality.value, fingerprint)
                 guard isCurrent(token) else { cleanup(); return }
                 guard success != 0 else { skipStoredCredential = promptedCredential; throw PortalError(message: String(cString: portal_vnc_error(vnc))) }
@@ -114,7 +110,26 @@ final class Session: ObservableObject {
                     timer?.invalidate(); timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in self?.sendClipboardIfChanged() }
                 }
                 poll(token)
-            } catch { let message = error.localizedDescription; cleanup(); DispatchQueue.main.async { [self] in if isCurrent(token) { failed(message, retry: false) } } }
+            } catch {
+                let message = error.localizedDescription
+                let retry = reconnecting && !promptedCredential && !cancelledPrompt && (tunnel == nil || tunnelReady || (error as? PortalError)?.retryable == true)
+                cleanup(); DispatchQueue.main.async { [self] in if isCurrent(token) { failed(message, retry: retry) } }
+            }
+        }
+    }
+    private func receiveFrame(_ bytes: UnsafePointer<UInt8>, width: Int, height: Int) {
+        // ponytail: upload whole frames; use dirty rectangles if profiling shows this is the bottleneck.
+        let data = Data(bytes: bytes, count: width * height * 4)
+        frameLock.lock()
+        pendingFrame = (data, width, height, workerGeneration)
+        let needsDelivery = !frameDeliveryScheduled
+        frameDeliveryScheduled = true
+        frameLock.unlock()
+        guard needsDelivery else { return }
+        DispatchQueue.main.async { [self] in
+            frameLock.lock(); let frame = pendingFrame; pendingFrame = nil; frameDeliveryScheduled = false; frameLock.unlock()
+            guard let (data,width,height,token) = frame, isCurrent(token), let provider = CGDataProvider(data: data as CFData) else { return }
+            image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue).union(.byteOrder32Big), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
         }
     }
     private func poll(_ token: Int) {
@@ -184,7 +199,7 @@ final class Session: ObservableObject {
         alert.addButton(withTitle: kind == 1 ? "Connect Anyway" : "Trust and Connect"); alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return false }
         if kind == 1 { computer.acceptedInsecureAddress = computer.address; save?(computer) }
-        else { UserDefaults.standard.set(detail,forKey: "certificate:\(computer.address)") }
+        else { UserDefaults.standard.set(detail,forKey: "certificate:\(computer.destinationIdentity)") }
         return true
     }
 }

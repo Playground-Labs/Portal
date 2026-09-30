@@ -14,6 +14,7 @@ let package = Package(
                 linkerSettings: [.unsafeFlags(["-L", native + "/lib", "-Xlinker", "-rpath", "-Xlinker", native + "/lib"]), .linkedLibrary("vncclient"), .linkedLibrary("iconv")]),
         .executableTarget(name: "Portal", dependencies: ["PortalCore", "PortalVNC"],
                           linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security")]),
+        .testTarget(name: "PortalAppTests", dependencies: ["Portal", "PortalCore"], resources: [.copy("session_server.py")]),
         .testTarget(name: "PortalCoreTests", dependencies: ["PortalCore"]),
         .testTarget(name: "PortalVNCTests", dependencies: ["PortalVNC"], resources: [.copy("rfb_server.py")])
     ],

@@ -8,7 +8,7 @@ let supportDirectory = FileManager.default.urls(for: .applicationSupportDirector
 func showError(_ error: Error) { let alert = NSAlert(error: error); alert.runModal() }
 func onMain<T>(_ work: () -> T) -> T { Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work) }
 
-struct PortalError: LocalizedError { var message: String; var errorDescription: String? { message } }
+struct PortalError: LocalizedError { var message: String; var retryable = false; var errorDescription: String? { message } }
 enum Keychain {
     static func read(_ account: String) -> String? {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "app.portal.vnc", kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
@@ -93,12 +93,12 @@ final class SSHTunnel {
         let helper = Bundle.main.url(forResource: "ssh-askpass", withExtension: "sh") ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("scripts/ssh-askpass.sh")
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
         let remoteHost = destination.host.contains(":") ? "[\(destination.host)]" : destination.host
-        var arguments = ["-F", "/dev/null", "-N", "-T", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=ask", "-o", "UserKnownHostsFile=\(supportDirectory.appendingPathComponent("known_hosts").path)", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-o", "ConnectTimeout=10", "-o", "NumberOfPasswordPrompts=1", "-o", "PermitLocalCommand=no", "-p", String(settings.port), "-L", "127.0.0.1:\(port):\(remoteHost):\(destination.port)"]
+        var arguments = ["-v", "-F", "/dev/null", "-N", "-T", "-o", "ExitOnForwardFailure=yes", "-o", "StrictHostKeyChecking=ask", "-o", "UserKnownHostsFile=\(supportDirectory.appendingPathComponent("known_hosts").path)", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3", "-o", "ConnectTimeout=10", "-o", "NumberOfPasswordPrompts=1", "-o", "PermitLocalCommand=no", "-p", String(settings.port), "-L", "127.0.0.1:\(port):\(remoteHost):\(destination.port)"]
         if !settings.keyPath.isEmpty { arguments += ["-i", NSString(string: settings.keyPath).expandingTildeInPath, "-o", "IdentitiesOnly=yes"] }
         arguments += ["\(settings.username)@\(settings.host)"]
         process.arguments = arguments
         var environment = ProcessInfo.processInfo.environment
-        environment["SSH_ASKPASS"] = helper.path; environment["SSH_ASKPASS_REQUIRE"] = "force"; environment["DISPLAY"] = "portal"; environment["PORTAL_EXECUTABLE"] = Bundle.main.executablePath ?? CommandLine.arguments[0]
+        environment["LC_ALL"] = "C"; environment["SSH_ASKPASS"] = helper.path; environment["SSH_ASKPASS_REQUIRE"] = "force"; environment["DISPLAY"] = "portal"; environment["PORTAL_EXECUTABLE"] = Bundle.main.executablePath ?? CommandLine.arguments[0]
         process.environment = environment; process.standardInput = FileHandle.nullDevice; process.standardOutput = FileHandle.nullDevice; process.standardError = errors
         errors.fileHandleForReading.readabilityHandler = { [weak self] file in
             let data = file.availableData
@@ -108,15 +108,13 @@ final class SSHTunnel {
         try process.run()
         let deadline = Date().addingTimeInterval(120)
         while process.isRunning && Date() < deadline && !cancelled() {
-            let fd = socket(AF_INET, SOCK_STREAM, 0)
-            var local = address
-            let result = withUnsafePointer(to: &local) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, length) } }
-            close(fd)
-            if result == 0 { return port }
+            errorLock.lock(); let messages = String(decoding: errorData, as: UTF8.self); errorLock.unlock()
+            if messages.contains("Local forwarding listening on 127.0.0.1 port \(port).") { return port }
             Thread.sleep(forTimeInterval: 0.1)
         }
-        errorLock.lock(); let detail = String(decoding: errorData, as: UTF8.self); errorLock.unlock()
-        stop(); throw PortalError(message: detail.isEmpty ? "SSH did not open a connection. Check the server and your credentials." : detail)
+        errorLock.lock(); let detail = String(decoding: errorData, as: UTF8.self).split(separator:"\n").filter { !$0.hasPrefix("debug") }.joined(separator:"\n"); errorLock.unlock()
+        let transient = ["Connection refused", "Connection timed out", "Operation timed out", "No route to host", "Network is unreachable", "Could not resolve hostname", "Connection reset"].contains { detail.contains($0) }
+        stop(); throw PortalError(message: detail.isEmpty ? "SSH did not open a connection. Check the server and your credentials." : detail, retryable: transient && !cancelled())
     }
     func stop() { if process.isRunning { process.terminate() }; errors.fileHandleForReading.readabilityHandler = nil }
     deinit { stop() }

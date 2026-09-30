@@ -28,7 +28,11 @@ public struct Computer: Identifiable, Codable, Equatable, Sendable {
     public var lastUsed: Date?
     public var acceptedInsecureAddress: String?
     public init(name: String, address: String) { self.name = name; self.address = address }
-    public var credentialAccount: String { "vnc:\(address.lowercased()):\(username)" }
+    public var destinationIdentity: String {
+        let endpoint = (try? Endpoint(address).address) ?? address.lowercased()
+        return ssh.enabled ? "\(ssh.username)@\(ssh.host.lowercased()):\(ssh.port)->\(endpoint)" : endpoint
+    }
+    public var credentialAccount: String { "vnc:\(destinationIdentity):\(username)" }
 }
 
 public final class ComputerStore {

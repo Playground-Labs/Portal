@@ -31,4 +31,13 @@ final class ConnectionTests: XCTestCase {
             XCTAssertThrowsError(try Endpoint(invalid), invalid)
         }
     }
+    func testCredentialsAreScopedToTheSSHDestination() {
+        var first = Computer(name:"A",address:"localhost:5900")
+        var second = Computer(name:"B",address:"LOCALHOST")
+        XCTAssertEqual(first.credentialAccount,second.credentialAccount)
+        first.ssh.enabled = true; first.ssh.host = "one.example"; first.ssh.username = "user"
+        second.ssh = first.ssh; second.ssh.host = "two.example"
+        XCTAssertNotEqual(first.credentialAccount,second.credentialAccount)
+    }
+
 }

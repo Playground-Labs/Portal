@@ -23,6 +23,8 @@ struct PortalVNC {
 static void quiet_log(const char *format, ...) {}
 static char tag;
 static _Thread_local PortalVNC *active;
+static void clear_log_scope(PortalVNC **scope) { active=NULL; }
+#define LOG_SCOPE(value) PortalVNC *log_scope __attribute__((cleanup(clear_log_scope))) = (active=(value))
 static PortalVNC *owner(rfbClient *c) { return rfbClientGetClientData(c, &tag); }
 static void log_message(const char *format, ...) {
     if (!active) return;
@@ -117,7 +119,7 @@ static int encodings[]={-259,rfbEncodingExtDesktopSize,0};
 static rfbClientProtocolExtension extension={.encodings=encodings,.handleEncoding=encoding,.handleMessage=message};
 static pthread_once_t registration=PTHREAD_ONCE_INIT;
 static void register_extension(void) { rfbClientRegisterExtension(&extension); rfbClientLog=quiet_log; rfbClientErr=log_message; }
-PortalVNC *portal_vnc_create(PortalCallbacks cb) {
+PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     pthread_once(&registration,register_extension);
     PortalVNC *p=calloc(1,sizeof(*p)); if(!p) return NULL;
     p->cb=cb; p->client=rfbGetClient(8,3,4);
@@ -131,7 +133,7 @@ PortalVNC *portal_vnc_create(PortalCallbacks cb) {
     c->appData.useRemoteCursor=FALSE; c->appData.compressLevel=1;
     return p;
 }
-int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int quality,const char *fingerprint) {
+int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int quality,const char *fingerprint) { LOG_SCOPE(p);
     if(!p || !host || port<1 || port>65535 || p->ready) return 0;
     active=p; rfbClient *c=p->client; p->tunneled=tunnel;
     if(fingerprint && strlen(fingerprint)==64) {
@@ -145,7 +147,7 @@ int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int qua
     c->updateRect.x=c->updateRect.y=0; c->updateRect.w=c->width; c->updateRect.h=c->height; c->isUpdateRectManagedByLib=TRUE;
     p->ready=!!SendFramebufferUpdateRequest(c,0,0,c->width,c->height,FALSE); return p->ready;
 }
-int portal_vnc_poll(PortalVNC *p) {
+int portal_vnc_poll(PortalVNC *p) { LOG_SCOPE(p);
     if(!p || !p->ready || p->fatal) return -1;
     active=p; int result=WaitForMessage(p->client,20000);
     uint64_t previousUpdates=p->updates;
@@ -164,9 +166,9 @@ int portal_vnc_poll(PortalVNC *p) {
     if(result<0 || !handled || p->fatal) { p->ready=0; return -1; }
     return result>0;
 }
-int portal_vnc_pointer(PortalVNC *p,int x,int y,int buttons) { return p && p->ready && x>=0 && y>=0 && x<p->client->width && y<p->client->height && SendPointerEvent(p->client,x,y,buttons); }
-int portal_vnc_key(PortalVNC *p,uint32_t key,int down) { return p && p->ready && SendKeyEvent(p->client,key,down); }
-int portal_vnc_clipboard(PortalVNC *p,const char *text,int length) {
+int portal_vnc_pointer(PortalVNC *p,int x,int y,int buttons) { LOG_SCOPE(p); return p && p->ready && x>=0 && y>=0 && x<p->client->width && y<p->client->height && SendPointerEvent(p->client,x,y,buttons); }
+int portal_vnc_key(PortalVNC *p,uint32_t key,int down) { LOG_SCOPE(p); return p && p->ready && SendKeyEvent(p->client,key,down); }
+int portal_vnc_clipboard(PortalVNC *p,const char *text,int length) { LOG_SCOPE(p);
     if(!p || !p->ready || !text || length<0 || length>1048576) return 0;
     if(p->client->extendedClipboardServerCapabilities) return !!SendClientCutTextUTF8(p->client,(char*)text,length);
     iconv_t converter=iconv_open("ISO-8859-1","UTF-8");
@@ -178,13 +180,13 @@ int portal_vnc_clipboard(PortalVNC *p,const char *text,int length) {
     int sent=converted && SendClientCutText(p->client,buffer,(int)(output-buffer));
     iconv_close(converter); free(buffer); return sent;
 }
-int portal_vnc_resize(PortalVNC *p,int width,int height) { return p && p->ready && p->screenCount==1 && valid_size(width,height) && SendExtDesktopSize(p->client,width,height); }
-int portal_vnc_audio(PortalVNC *p,int enabled) {
+int portal_vnc_resize(PortalVNC *p,int width,int height) { LOG_SCOPE(p); return p && p->ready && p->screenCount==1 && valid_size(width,height) && SendExtDesktopSize(p->client,width,height); }
+int portal_vnc_audio(PortalVNC *p,int enabled) { LOG_SCOPE(p);
     if(!p || !p->ready || !p->audio) return 0;
     const char format[]={255,1,0,2,3,2,0,0,172,68}; const char command[]={255,1,0,enabled?0:1};
     return (!enabled || WriteToRFBServer(p->client,format,sizeof(format))) && WriteToRFBServer(p->client,command,sizeof(command));
 }
-int portal_vnc_quality(PortalVNC *p,int quality) { if(!p || !p->ready || quality < -1 || quality>9) return 0; p->automaticQuality=quality<0; p->client->appData.qualityLevel=quality<0 ? 6 : quality; return !!SetFormatAndEncodings(p->client); }
-int portal_vnc_encrypted(PortalVNC *p) { return p && (p->tunneled || p->client->tlsSession!=NULL); }
-const char *portal_vnc_error(PortalVNC *p) { return p && p->error[0] ? p->error : "The connection closed unexpectedly."; }
-void portal_vnc_destroy(PortalVNC *p) { if(!p) return; if(p->client) { free(p->client->frameBuffer); p->client->frameBuffer=NULL; rfbClientCleanup(p->client); } if(active==p) active=NULL; free(p); }
+int portal_vnc_quality(PortalVNC *p,int quality) { LOG_SCOPE(p); if(!p || !p->ready || quality < -1 || quality>9) return 0; p->automaticQuality=quality<0; p->client->appData.qualityLevel=quality<0 ? 6 : quality; return !!SetFormatAndEncodings(p->client); }
+int portal_vnc_encrypted(PortalVNC *p) { LOG_SCOPE(p); return p && (p->tunneled || p->client->tlsSession!=NULL); }
+const char *portal_vnc_error(PortalVNC *p) { LOG_SCOPE(p); return p && p->error[0] ? p->error : "The connection closed unexpectedly."; }
+void portal_vnc_destroy(PortalVNC *p) { LOG_SCOPE(p); if(!p) return; if(p->client) { free(p->client->frameBuffer); p->client->frameBuffer=NULL; rfbClientCleanup(p->client); } if(active==p) active=NULL; free(p); }

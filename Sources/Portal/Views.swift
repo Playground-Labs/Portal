@@ -154,7 +154,7 @@ struct SettingsView: View {
                     Toggle("Reconnect after an interruption",isOn:$reconnect)
                     Toggle("Hide session controls in fullscreen",isOn:$hideToolbar)
                 }.formStyle(.grouped).frame(height:220)
-                VStack(alignment:.leading,spacing:8) { Text("Privacy & security").font(.headline); Text("Passwords are stored only in macOS Keychain. Portal does not collect analytics.").foregroundStyle(.secondary); Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton()); Text("Shows encryption and certificate prompts again. SSH host fingerprints remain in Portal’s known_hosts file.").font(.caption).foregroundStyle(.secondary) }
+                VStack(alignment:.leading,spacing:8) { Text("Privacy & security").font(.headline); Text("Passwords are stored only in macOS Keychain. Portal does not collect analytics.").foregroundStyle(.secondary); Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton()); Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.caption).foregroundStyle(.secondary) }
                 HStack { Text("Portal · Free and open source").font(.caption).foregroundStyle(.secondary); Spacer(); Button("Done") { dismiss() }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }
             }.padding(28).frame(width:540)
         }

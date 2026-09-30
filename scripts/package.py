@@ -1,7 +1,8 @@
 """Bundle the executable and its non-system dynamic libraries for local use."""
-import pathlib, subprocess, shutil, plistlib, sys
+import pathlib, subprocess, shutil, plistlib, sys, re
 root = pathlib.Path(__file__).resolve().parent.parent
 app = root / 'dist' / 'Portal.app'
+if app.exists(): shutil.rmtree(app)
 contents = app / 'Contents'
 for name in ['MacOS', 'Frameworks', 'Resources']:
     (contents / name).mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,25 @@ def bundle(binary, original):
             subprocess.run(['install_name_tool','-id','@rpath/'+target.name,str(target)],check=True)
         subprocess.run(['install_name_tool','-change',dependency,'@rpath/'+target.name,str(binary)],check=True)
 bundle(executable,source)
-subprocess.run(['install_name_tool','-delete_rpath',str(root/'.build/native/lib'),str(executable)],check=True)
+versions = [(14,0)]
+for binary in [executable, *(contents/'Frameworks').iterdir()]:
+    load_commands = subprocess.check_output(['otool','-l',str(binary)],text=True)
+    versions += [tuple(map(int,version.split('.'))) for version in re.findall(r'\bminos\s+(\d+(?:\.\d+)+)',load_commands)]
+info['LSMinimumSystemVersion'] = '.'.join(map(str,max(versions)))
+with (contents/'Info.plist').open('wb') as file: plistlib.dump(info,file)
+licenses = contents/'Resources/Licenses'
+licenses.mkdir(exist_ok=True)
+shutil.copy2(root/'LICENSE',licenses/'Portal-GPL.txt')
+shutil.copy2(root/'THIRD_PARTY.md',licenses/'THIRD_PARTY.md')
+for library in seen:
+    prefix = library.parent.parent
+    for license_file in prefix.iterdir():
+        if license_file.is_file() and license_file.name.upper().startswith(('LICENSE','COPYING')):
+            shutil.copy2(license_file,licenses/(prefix.parent.name+'-'+license_file.name))
+commands = subprocess.check_output(['otool','-l',str(executable)],text=True)
+for path in re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset',commands):
+    if path.startswith('/') and not path.startswith('/usr/lib/'):
+        subprocess.run(['install_name_tool','-delete_rpath',path,str(executable)],check=True)
 subprocess.run(['install_name_tool','-add_rpath','@executable_path/../Frameworks',str(executable)],check=True)
 for library in (contents/'Frameworks').iterdir(): subprocess.run(['codesign','--force','--sign','-',str(library)],check=True)
 subprocess.run(['codesign','--force','--deep','--sign','-',str(app)],check=True)

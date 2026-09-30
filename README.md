@@ -4,7 +4,7 @@ A native macOS VNC client with a quiet interface, soft amber controls, and one w
 
 ## Build and run
 
-Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. The current build has been tested on Apple silicon with macOS 26. Dependencies installed by Homebrew may require a newer OS than the app’s source deployment target.
+Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. The current bundled build requires macOS 26 and has been tested on Apple silicon. The packager sets the minimum OS to the highest requirement among its actual libraries. Building for older macOS versions requires dependencies built for those systems.
 
 ```sh
 brew install cmake openssl jpeg-turbo
@@ -39,7 +39,7 @@ swift build
 swift test
 ```
 
-Tests cover address parsing, saved settings with no passwords in JSON, corrupt-file protection, and real TCP RFB exchanges: VNC password authentication, pixels, keyboard/pointer input, clipboard, monitor layouts, safe resize requests, and PCM audio. The tiny test server is not a production VNC server.
+Tests cover address parsing, saved settings with no passwords in JSON, corrupt-file protection, and real TCP RFB exchanges: VNC password authentication, pixels, keyboard/pointer input, clipboard, monitor layouts, safe resize requests, PCM audio, final-frame delivery under UI load, and reconnect after a server outage. The tiny test server is not a production VNC server.
 
 Settings live in `~/Library/Application Support/Portal/computers.json`; SSH fingerprints in the adjacent `known_hosts`. Passwords live in Keychain. Appearance and app preferences use macOS UserDefaults. Portal has no telemetry.
 

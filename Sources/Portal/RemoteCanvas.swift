@@ -35,12 +35,15 @@ final class DesktopCanvas: NSView {
     private var held: [UInt16: UInt32] = [:]
     private var buttons = 0
     private var lastPoint = (0,0)
+    private var capsLock = false
+    // Device masks from IOKit/hidsystem/IOLLEvent.h distinguish left and right keys.
+    private let modifierKeys: [(UInt16,UInt,UInt32)] = [(56,0x2,0xffe1),(60,0x4,0xffe2),(59,0x1,0xffe3),(62,0x2000,0xffe4),(58,0x20,0xffe9),(61,0x40,0xffea),(55,0x8,0xffeb),(54,0x10,0xffec)]
     private var tracking: NSTrackingArea?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: Session) {
         self.session = session; super.init(frame: .zero)
-        setAccessibilityRole(.image); setAccessibilityLabel("Remote desktop. Click to control. Press Control Option Escape to release the keyboard.")
+        setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel("Remote desktop. Click to control. Press Control Option Escape to release the keyboard.")
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown,.keyUp,.flagsChanged]) { [weak self] event in
             guard let self, event.window == self.window, self.session.captured, self.window?.firstResponder === self else { return event }
             if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.contains([.control,.option]) { self.releaseInput(); return nil }
@@ -86,11 +89,11 @@ final class DesktopCanvas: NSView {
         return (Int(source.minX+(point.x-destination.minX)*source.width/destination.width),Int(source.minY+(point.y-destination.minY)*source.height/destination.height))
     }
     private func pointer(_ event: NSEvent) { guard let position = point(event) else { if buttons == 0 { session.pointer(x:lastPoint.0,y:lastPoint.1,buttons:0) }; return }; lastPoint = position; session.pointer(x:position.0,y:position.1,buttons:buttons) }
-    override func mouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; window?.makeFirstResponder(self); session.captured = true; buttons |= 1; pointer(event) }
+    override func mouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 1; pointer(event) }
     override func mouseUp(with event: NSEvent) { buttons &= ~1; pointer(event) }
-    override func rightMouseDown(with event: NSEvent) { guard !session.computer.viewOnly else { return }; window?.makeFirstResponder(self); session.captured = true; buttons |= 4; pointer(event) }
+    override func rightMouseDown(with event: NSEvent) { guard !session.computer.viewOnly else { return }; capture(event); buttons |= 4; pointer(event) }
     override func rightMouseUp(with event: NSEvent) { buttons &= ~4; pointer(event) }
-    override func otherMouseDown(with event: NSEvent) { buttons |= 2; pointer(event) }
+    override func otherMouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 2; pointer(event) }
     override func otherMouseUp(with event: NSEvent) { buttons &= ~2; pointer(event) }
     override func mouseMoved(with event: NSEvent) { pointer(event) }
     override func mouseDragged(with event: NSEvent) { pointer(event) }
@@ -112,12 +115,23 @@ final class DesktopCanvas: NSView {
         else { value = nil }
         if let value { held[event.keyCode] = value; session.key(value,down:true) }
     }
+    private func capture(_ event: NSEvent) {
+        window?.makeFirstResponder(self)
+        guard !session.captured else { return }
+        session.captured = true; capsLock = event.modifierFlags.contains(.capsLock)
+        modifiers(event)
+    }
     private func modifiers(_ event: NSEvent) {
-        let map: [UInt16:(NSEvent.ModifierFlags,UInt32)] = [56:(.shift,0xffe1),60:(.shift,0xffe2),59:(.control,0xffe3),62:(.control,0xffe4),58:(.option,0xffe9),61:(.option,0xffea),55:(.command,0xffeb),54:(.command,0xffec),57:(.capsLock,0xffe5)]
-        guard let (flag,key) = map[event.keyCode] else { return }
-        let down = event.modifierFlags.contains(flag)
-        if down { held[event.keyCode] = key } else { held.removeValue(forKey:event.keyCode) }
-        session.key(key,down:down)
+        if event.keyCode == 57 {
+            let state = event.modifierFlags.contains(.capsLock)
+            if state != capsLock { session.special([0xffe5]); capsLock = state }
+        }
+        for (code,mask,key) in modifierKeys {
+            let down = event.modifierFlags.rawValue & mask != 0
+            guard down != (held[code] != nil) else { continue }
+            if down { held[code] = key } else { held.removeValue(forKey:code) }
+            session.key(key,down:down)
+        }
     }
 }
 import PortalVNC

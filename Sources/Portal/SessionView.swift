@@ -23,7 +23,7 @@ struct SessionView: View {
                             Text(session.status).font(.system(size:20,weight:.semibold))
                             Text(session.computer.name).foregroundStyle(.secondary)
                             if !session.error.isEmpty { Text(session.error).font(.system(size:12)).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled).frame(maxWidth:420) }
-                            HStack { if !session.error.isEmpty { Button("Try Again") { session.start() }.buttonStyle(SoftButton(primary:true)) }; Button(session.retrying || session.error.isEmpty ? "Cancel" : "Close") { if session.retrying || session.error.isEmpty { session.stop() } else { session.window?.close() } }.buttonStyle(SoftButton()) }
+                            HStack { if !session.error.isEmpty { Button("Try Again") { session.start() }.buttonStyle(SoftButton(primary:true)) }; Button(session.retrying || session.error.isEmpty ? "Cancel" : "Close") { session.window?.close() }.buttonStyle(SoftButton()) }
                         }.padding(32).foregroundStyle(.white).colorScheme(.dark)
                     }
                     if showHint && session.connected {
