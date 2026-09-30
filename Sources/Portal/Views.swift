@@ -79,10 +79,18 @@ struct HomeView: View {
                                 else { ForEach(discovery.computers) { computer in computerRow(computer,saved:false) } }
                             }
                         }
-                    }.padding(32)
+                    }.padding(.horizontal,24).padding(.vertical,28)
                 }
                 Divider().opacity(0.5)
-                HStack { Button { settings = true } label: { Image(systemName:"gearshape").frame(width:16,height:16) }.buttonStyle(.plain).padding(.horizontal,8).padding(.vertical,6).modifier(ControlHover()).help("Settings (⌘,)").accessibilityLabel("Settings"); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
+                HStack {
+                    Button { settings = true } label: {
+                        Image(systemName:"gearshape").font(.system(size:18,weight:.regular))
+                            .frame(width:32,height:32).contentShape(Rectangle())
+                    }.buttonStyle(.plain).foregroundStyle(.secondary).modifier(ControlHover())
+                        .help("Settings (⌘,)").accessibilityLabel("Settings")
+                    Spacer()
+                    Text("Free and open source").font(.system(size:11)).foregroundStyle(.tertiary)
+                }.padding(.leading,17).padding(.trailing,24).frame(height:44)
             }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
