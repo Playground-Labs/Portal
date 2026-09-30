@@ -39,7 +39,7 @@ struct HomeView: View {
                 Divider().opacity(0.5)
                 ScrollView {
                     VStack(alignment:.leading,spacing:26) {
-                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("A familiar place, from anywhere.").foregroundStyle(.secondary).font(.system(size:13)) }
+                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
                         HStack(spacing:12) {
                             Image(systemName:"bolt.horizontal").foregroundStyle(.secondary)
                             TextField("Enter an address to connect",text:$address).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
@@ -66,7 +66,7 @@ struct HomeView: View {
                     }.padding(32)
                 }
                 Divider().opacity(0.5)
-                HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain); Spacer(); Text("Simple connections. Your own space.").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
+                HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
             }.background(Color.portalBackground).ignoresSafeArea(.container,edges:.top)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
