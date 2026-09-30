@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let startingSize = NSSize(width:515,height:660)
         home = makeWindow(title:"Portal",size:startingSize)
         home.styleMask.remove([.fullSizeContentView, .resizable])
-        home.titleVisibility = .visible
+        home.titleVisibility = .hidden
         home.titlebarAppearsTransparent = true
         let toolbar = NSToolbar(identifier:"PortalHomeToolbar")
         toolbar.delegate = self
