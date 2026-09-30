@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         windowItem.submenu = windowMenu; menu.addItem(windowItem); NSApp.windowsMenu = windowMenu; NSApp.mainMenu = menu
         let startingSize = NSSize(width:515,height:660)
         home = makeWindow(title:"Portal",size:startingSize)
-        home.styleMask.remove(.fullSizeContentView)
+        home.styleMask.remove([.fullSizeContentView, .resizable])
         home.titleVisibility = .visible
         home.titlebarAppearsTransparent = true
         let toolbar = NSToolbar(identifier:"PortalHomeToolbar")
@@ -42,8 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let homeView = NSHostingView(rootView:HomeView(model:model))
         homeView.sizingOptions = []
         home.contentView = homeView
-        home.minSize = NSSize(width:startingSize.width,height:460)
-        home.maxSize = NSSize(width:startingSize.width,height:home.maxSize.height)
+        home.minSize = startingSize
+        home.maxSize = startingSize
         home.collectionBehavior = [.fullScreenNone]
         home.setFrame(NSRect(origin:home.frame.origin,size:startingSize),display:false)
         home.center(); showHome(); NSApp.activate(ignoringOtherApps:true)
