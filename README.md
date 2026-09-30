@@ -1,5 +1,7 @@
 # Portal
 
+<img src="assets/branding/portal-orange-v1.png" alt="Portal orange portal logo" width="160" height="160">
+
 A native macOS VNC client with a quiet interface, soft amber controls, and one window per computer. Free software under GPL-2.0-or-later.
 
 ## Build and run
