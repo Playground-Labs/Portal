@@ -22,7 +22,7 @@ info = {
 }
 iconset = root/'.build/Portal.iconset'
 iconset.mkdir(exist_ok=True)
-master = root/'assets/branding/portal-orange-v1.png'
+master = root/'assets/branding/portal-round-tube-ring-thinner-alt.png'
 for size in [16,32,128,256,512]:
     for scale in [1,2]:
         name = f'icon_{size}x{size}' + ('@2x' if scale == 2 else '') + '.png'
