@@ -60,7 +60,7 @@ struct HomeView: View {
                         HStack(spacing:12) {
                             TextField("Enter an address to connect",text:$address).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
                             Button("Connect",action:quickConnect).buttonStyle(SoftButton(primary:true)).disabled(address.trimmingCharacters(in:.whitespaces).isEmpty)
-                        }.padding(.horizontal,12).frame(height:44).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7)).overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
+                        }.padding(.leading,12).padding(.trailing,7).frame(height:44).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7)).overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
                         VStack(alignment:.leading,spacing:12) {
                             sectionLabel("SAVED COMPUTERS",count:model.computers.count)
                             if model.computers.isEmpty {
@@ -90,7 +90,7 @@ struct HomeView: View {
                         .help("Settings (⌘,)").accessibilityLabel("Settings")
                     Spacer()
                     Text("Free and open source").font(.system(size:11)).foregroundStyle(.tertiary)
-                }.padding(.leading,17).padding(.trailing,24).frame(height:44)
+                }.padding(.leading,6).padding(.trailing,24).frame(height:44)
             }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }

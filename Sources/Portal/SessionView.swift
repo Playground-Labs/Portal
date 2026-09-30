@@ -82,7 +82,7 @@ struct SessionView: View {
                 Button("Reconnect") { session.start() }
                 Button("Disconnect") { session.window?.close() }
             } label: { Image(systemName:"ellipsis").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Session").accessibilityLabel("Session controls")
-        }.menuStyle(.button).buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,14).frame(height:44).background(Color.portalBackground)
+        }.menuStyle(.button).buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,6).frame(height:44).background(Color.portalBackground)
         .onHover { over in if fullscreen && hideToolbar && !over { DispatchQueue.main.asyncAfter(deadline:.now()+1) { revealControls = false } } }
         .onChange(of:session.computer.sizing) { _,_ in session.updatePreferences() }
         .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }
