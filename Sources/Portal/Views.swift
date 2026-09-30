@@ -176,38 +176,42 @@ struct SettingsView: View {
             VStack(spacing:0) {
                 HStack { Text("Settings").font(.system(size:20,weight:.semibold)); Spacer() }
                     .padding(.horizontal,24).padding(.top,20).padding(.bottom,16)
-                ScrollView {
-                    VStack(alignment:.leading,spacing:20) {
-                        VStack(spacing:0) {
-                            HStack {
-                                Text("Appearance")
-                                Spacer()
-                                Picker("Appearance",selection:$appearance) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }
-                                    .labelsHidden().frame(width:120)
-                            }.frame(minHeight:34)
-                            Divider()
-                            Toggle(isOn:$discovery) { HStack { Text("Discover nearby computers"); Spacer() } }.frame(minHeight:34)
-                            Divider()
-                            Toggle(isOn:$reconnect) { HStack { Text("Reconnect after an interruption"); Spacer() } }.frame(minHeight:34)
-                            Divider()
-                            Toggle(isOn:$hideToolbar) { HStack { Text("Hide session controls in fullscreen"); Spacer() } }.frame(minHeight:34)
-                        }.toggleStyle(.switch).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
-                            .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
-                        VStack(alignment:.leading,spacing:8) {
-                            Text("Privacy & security").font(.system(size:13,weight:.semibold))
-                            Text("Passwords stay in macOS Keychain. No analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                            Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton())
-                            Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
-                        }
-                    }.padding(.horizontal,24).padding(.bottom,16)
-                }.frame(maxWidth:.infinity,maxHeight:.infinity)
+                ViewThatFits(in:.vertical) {
+                    settingsContent.fixedSize(horizontal:false,vertical:true)
+                    ScrollView { settingsContent }.scrollBounceBehavior(.basedOnSize)
+                }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
                 Divider().opacity(0.5)
                 HStack {
                     Text("Portal · Free and open source").font(.system(size:11)).foregroundStyle(.secondary)
                     Spacer()
                     Button("Done") { dismiss() }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction)
                 }.padding(.horizontal,24).padding(.vertical,12)
-            }.font(.system(size:12)).frame(width:468,height:400)
+            }.font(.system(size:12)).frame(width:468,height:432)
         }
+    }
+    private var settingsContent: some View {
+        VStack(alignment:.leading,spacing:20) {
+            VStack(spacing:0) {
+                HStack {
+                    Text("Appearance")
+                    Spacer()
+                    Picker("Appearance",selection:$appearance) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }
+                        .labelsHidden().frame(width:120)
+                }.frame(minHeight:34)
+                Divider()
+                Toggle(isOn:$discovery) { HStack { Text("Discover nearby computers"); Spacer() } }.frame(minHeight:34)
+                Divider()
+                Toggle(isOn:$reconnect) { HStack { Text("Reconnect after an interruption"); Spacer() } }.frame(minHeight:34)
+                Divider()
+                Toggle(isOn:$hideToolbar) { HStack { Text("Hide session controls in fullscreen"); Spacer() } }.frame(minHeight:34)
+            }.toggleStyle(.switch).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
+                .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
+            VStack(alignment:.leading,spacing:8) {
+                Text("Privacy & security").font(.system(size:13,weight:.semibold))
+                Text("Passwords stay in macOS Keychain. No analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton())
+                Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+            }
+        }.padding(.horizontal,24).padding(.bottom,16)
     }
 }
