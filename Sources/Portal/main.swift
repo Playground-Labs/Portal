@@ -28,8 +28,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowMenu.addItem(withTitle:"Minimize",action:#selector(NSWindow.performMiniaturize(_:)),keyEquivalent:"m")
         windowMenu.addItem(withTitle:"Zoom",action:#selector(NSWindow.performZoom(_:)),keyEquivalent:"")
         windowItem.submenu = windowMenu; menu.addItem(windowItem); NSApp.windowsMenu = windowMenu; NSApp.mainMenu = menu
-        home = makeWindow(title:"Portal",size:NSSize(width:820,height:660)); home.minSize = NSSize(width:620,height:460)
-        home.contentView = NSHostingView(rootView:HomeView(model:model)); home.center(); showHome(); NSApp.activate(ignoringOtherApps:true)
+        let startingSize = NSSize(width:515,height:660)
+        home = makeWindow(title:"Portal",size:startingSize)
+        home.styleMask.remove(.fullSizeContentView)
+        home.titleVisibility = .visible
+        home.titlebarAppearsTransparent = false
+        let homeView = NSHostingView(rootView:HomeView(model:model))
+        homeView.sizingOptions = []
+        home.contentView = homeView
+        home.minSize = NSSize(width:515,height:460)
+        home.setFrame(NSRect(origin:home.frame.origin,size:startingSize),display:false)
+        home.center(); showHome(); NSApp.activate(ignoringOtherApps:true)
     }
     @objc func showHome() { home?.makeKeyAndOrderFront(nil) }
     @objc func settings() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalSettings"),object:nil) }

@@ -54,11 +54,13 @@ struct HomeView: View {
     var body: some View {
         PortalAppearance {
             VStack(spacing:0) {
-                HStack { Text("Portal").font(.system(size:13,weight:.semibold)); Spacer(); Button { editing = Computer(name:"",address:"") } label: { Label("Add Computer",systemImage:"plus") }.buttonStyle(SoftButton()) }.padding(.leading,80).padding(.trailing,24).frame(height:54)
-                Divider().opacity(0.5)
                 ScrollView {
                     VStack(alignment:.leading,spacing:26) {
-                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
+                        HStack(alignment:.top,spacing:12) {
+                            VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
+                            Spacer(minLength:0)
+                            Button { editing = Computer(name:"",address:"") } label: { Label("Add Computer",systemImage:"plus") }.buttonStyle(SoftButton())
+                        }
                         HStack(spacing:12) {
                             Image(systemName:"bolt.horizontal").foregroundStyle(.secondary)
                             TextField("Enter an address to connect",text:$address).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
@@ -86,7 +88,7 @@ struct HomeView: View {
                 }
                 Divider().opacity(0.5)
                 HStack { Button { settings = true } label: { Label("Settings",systemImage:"gearshape") }.buttonStyle(.plain).padding(.horizontal,8).padding(.vertical,6).modifier(ControlHover()); Spacer(); Text("Free and open source").foregroundStyle(.tertiary) }.font(.system(size:11)).padding(.horizontal,24).frame(height:40)
-            }.background(Color.portalBackground).ignoresSafeArea(.container,edges:.top)
+            }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
             .alert("Portal",isPresented:Binding(get:{ model.alert != nil },set:{ if !$0 { model.alert = nil } })) { Button("OK") { model.alert = nil } } message: { Text(model.alert ?? "") }
@@ -150,7 +152,7 @@ struct ConnectionEditor: View {
                 }.font(.system(size:12))
                 if !error.isEmpty { Text(error).foregroundStyle(.red).font(.caption) }
                 HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(SoftButton()).keyboardShortcut(.cancelAction); Button("Save Computer") { do { computer.address = try Endpoint(computer.address).address; if computer.name.trimmingCharacters(in:.whitespaces).isEmpty { computer.name = try Endpoint(computer.address).host }; try computer.validate(); save(computer); dismiss() } catch { self.error = error.localizedDescription } }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }
-            }.padding(28).frame(width:advanced ? 544 : 404)
+            }.padding(28).frame(width:advanced ? 468 : 404)
         }
     }
     private func field(_ title:String,placeholder:String,text:Binding<String>) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.system(size:12,weight:.medium)); TextField(placeholder,text:text).textFieldStyle(.roundedBorder) } }
@@ -187,7 +189,7 @@ struct SettingsView: View {
                             .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
                         VStack(alignment:.leading,spacing:8) {
                             Text("Privacy & security").font(.system(size:13,weight:.semibold))
-                            Text("Passwords are stored only in macOS Keychain. Portal does not collect analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                            Text("Passwords stay in macOS Keychain. No analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                             Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton())
                             Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                         }
@@ -199,7 +201,7 @@ struct SettingsView: View {
                     Spacer()
                     Button("Done") { dismiss() }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction)
                 }.padding(.horizontal,24).padding(.vertical,12)
-            }.font(.system(size:12)).frame(width:520,height:400)
+            }.font(.system(size:12)).frame(width:468,height:400)
         }
     }
 }
