@@ -25,6 +25,8 @@ final class CredentialInput: ObservableObject {
 struct CredentialFields: View {
     @ObservedObject var input: CredentialInput
     let needsUser: Bool
+    var showsRemember = true
+    var passwordPrompt = "Password"
     @FocusState private var focus: Field?
     private enum Field { case username, password }
     var body: some View {
@@ -34,12 +36,12 @@ struct CredentialFields: View {
                     .textFieldStyle(.plain).focused($focus,equals:.username)
                     .accessibilityLabel("Username").modifier(ConnectionFieldSurface())
             }
-            SecureField("Password",text:$input.password)
+            SecureField(passwordPrompt,text:$input.password)
                 .textFieldStyle(.plain).focused($focus,equals:.password)
-                .accessibilityLabel("Password").modifier(ConnectionFieldSurface())
-            Toggle("Save credentials in Keychain",isOn:$input.remember)
-                .toggleStyle(.checkbox).font(.portal(size:12)).padding(.top,2)
-        }.font(.portal(size:13)).frame(width:320).fixedSize(horizontal:false,vertical:true)
+                .accessibilityLabel(passwordPrompt).modifier(ConnectionFieldSurface())
+            if showsRemember { Toggle("Save credentials in Keychain",isOn:$input.remember)
+                .toggleStyle(PortalToggle()).font(.portal(size:12)).padding(.top,2) }
+        }.font(.portal(size:13)).frame(maxWidth:.infinity).fixedSize(horizontal:false,vertical:true)
             .onAppear { focus = needsUser && input.username.isEmpty ? .username : .password }
     }
 }
@@ -137,8 +139,15 @@ struct HomeView: View {
             }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
             .sheet(isPresented:$settings) { SettingsView(model:model) }
-            .alert("Portal",isPresented:Binding(get:{ model.alert != nil },set:{ if !$0 { model.alert = nil } })) { Button("OK") { model.alert = nil } } message: { Text(model.alert ?? "") }
-            .confirmationDialog("Remove \(deleting?.name ?? "computer")?",isPresented:Binding(get:{ deleting != nil },set:{ if !$0 { deleting = nil } })) { Button("Remove",role:.destructive) { if let deleting { model.remove(deleting) }; deleting = nil }; Button("Cancel",role:.cancel) { deleting = nil } } message: { Text("Its saved password will also be removed from Keychain.") }
+            .onChange(of:model.alert) { _,message in
+                if let message { model.alert = nil; PortalDialog.confirm("Portal",message:message,cancel:false) }
+            }
+            .onChange(of:deleting) { _,computer in
+                if let computer {
+                    deleting = nil
+                    if PortalDialog.confirm("Remove \(computer.name)?",message:"Its saved password will also be removed from Keychain.",accept:"Remove") { model.remove(computer) }
+                }
+            }
             .onAppear { discovery.setEnabled(discoverNearby) }
             .onChange(of:discoverNearby) { _,enabled in discovery.setEnabled(enabled) }
             .onReceive(NotificationCenter.default.publisher(for:Notification.Name("PortalSettings"))) { _ in settings = true }
@@ -153,23 +162,15 @@ struct HomeView: View {
             Spacer()
             if computer.ssh.enabled { Image(systemName:"lock.shield").font(.system(size:12)).foregroundStyle(.secondary).help("Connects through SSH") }
             Button("Connect") { model.connect(computer) }.buttonStyle(SoftButton(primary:selected == computer.id))
-            Menu { if saved { Button("Rename") { rename(computer) }; Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width:32,height:32).modifier(ControlHover()).accessibilityLabel("Computer actions")
+            PortalPopover { Image(systemName:"ellipsis").font(.system(size:18)).frame(width:32,height:32) } content: { if saved { PortalAction("Rename") { rename(computer) }; PortalAction("Edit Computer") { editing = computer }; PortalAction("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); PortalAction("Remove Computer") { deleting = computer } } else { PortalAction("Save Computer") { model.save(computer) } } }.accessibilityLabel("Computer actions")
         }.padding(.horizontal,14).frame(height:66).contentShape(Rectangle()).background(selected == computer.id ? Color.portalAccent.opacity(0.06) : .clear).onTapGesture(count:2) { model.connect(computer) }.onTapGesture { selected = computer.id }
     }
     private func rename(_ computer: Computer) {
-        let alert = NSAlert()
-        alert.messageText = "Rename computer"
-        alert.informativeText = computer.address
-        let field = NSTextField(string:computer.name)
-        field.placeholderString = "Nickname"
-        field.setAccessibilityLabel("Nickname")
-        field.frame = NSRect(x:0,y:0,width:300,height:24)
-        alert.accessoryView = field
-        alert.addButton(withTitle:"Save"); alert.addButton(withTitle:"Cancel")
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let input = CredentialInput(username:computer.name)
+        let dialog = PortalDialog()
+        guard dialog.run("Rename computer",message:computer.address,accept:"Save",content:{ RenameField(input:input) }) else { return }
         var renamed = computer
-        renamed.name = field.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+        renamed.name = input.username.trimmingCharacters(in:.whitespacesAndNewlines)
         guard !renamed.name.isEmpty, renamed.name.count <= 200 else {
             model.alert = "Enter a nickname between 1 and 200 characters."; return
         }
@@ -197,24 +198,27 @@ struct ConnectionEditor: View {
                     field("Address",placeholder:"computer.local or 192.168.1.10",text:$computer.address,monospaced:true)
                     Text("VNC must be enabled on the remote computer. Add :5901 for a custom port.").font(.portal(size:11)).foregroundStyle(.secondary)
                 }
-                DisclosureGroup("Advanced",isExpanded:$advanced) {
+                VStack(alignment:.leading,spacing:0) {
+                    Button { advanced.toggle() } label: { HStack { Text("Advanced"); Spacer(); Image(systemName:advanced ? "chevron.up" : "chevron.down") }.padding(10).contentShape(Rectangle()) }.buttonStyle(.plain).modifier(ControlHover()).accessibilityValue(advanced ? "Expanded" : "Collapsed")
+                    if advanced {
                         VStack(alignment:.leading,spacing:16) {
                             field("Username",placeholder:"Ask when needed",text:$computer.username)
                             Toggle("Connect through SSH",isOn:$computer.ssh.enabled)
                             if computer.ssh.enabled {
-                                HStack { field("SSH server",placeholder:"server.example.com",text:$computer.ssh.host,monospaced:true); VStack(alignment:.leading) { Text("Port").font(.portal(size:12,weight:.medium)); TextField("22",value:$computer.ssh.port,format:.number.grouping(.never)).font(.portalMono(size:12)).textFieldStyle(.roundedBorder).frame(width:72) } }
+                                HStack { field("SSH server",placeholder:"server.example.com",text:$computer.ssh.host,monospaced:true); VStack(alignment:.leading) { Text("Port").font(.portal(size:12,weight:.medium)); TextField("22",value:$computer.ssh.port,format:.number.grouping(.never)).font(.portalMono(size:12)).textFieldStyle(.plain).modifier(ConnectionFieldSurface()).frame(width:72) } }
                                 field("SSH username",placeholder:"Username",text:$computer.ssh.username)
                                 HStack(alignment:.bottom) { field("Private key (optional)",placeholder:"Use password or SSH agent",text:$computer.ssh.keyPath,monospaced:true); Button("Choose") { let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.showsHiddenFiles = true; if panel.runModal() == .OK { computer.ssh.keyPath = panel.url?.path ?? "" } }.buttonStyle(SoftButton()) }
                                 Text("The VNC address is reached from the SSH server.").font(.portal(size:11)).foregroundStyle(.secondary)
                             }
                             Divider()
-                            Picker("Display",selection:$computer.sizing) { Text("Automatic resize, or fit").tag(DisplaySizing.automatic); Text("Fit to window").tag(DisplaySizing.fit); Text("Actual size").tag(DisplaySizing.actual) }
-                            Picker("Image quality",selection:$computer.quality) { ForEach(ImageQuality.allCases,id:\.self) { Text($0.rawValue.capitalized).tag($0) } }
-                            Picker("Clipboard",selection:$computer.clipboard) { Text("Share both ways").tag(ClipboardMode.bidirectional); Text("Receive only").tag(ClipboardMode.receive); Text("Off").tag(ClipboardMode.off) }
+                            PortalChoice("Display",selection:$computer.sizing,options:DisplaySizing.choices)
+                            PortalChoice("Image quality",selection:$computer.quality,options:ImageQuality.choices)
+                            PortalChoice("Clipboard",selection:$computer.clipboard,options:ClipboardMode.choices)
                             Toggle("View only",isOn:$computer.viewOnly)
                             Toggle("Play remote audio when available",isOn:$computer.audioEnabled)
                         }.padding(.top,16).padding(.trailing,4)
-                }.font(.portal(size:12)).toggleStyle(.switch).controlSize(.small)
+                    }
+                }.font(.portal(size:12)).toggleStyle(PortalToggle()).controlSize(.small)
                 if !error.isEmpty { Text(error).foregroundStyle(.red).font(.portal(size:11)) }
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading)
                 }
@@ -223,7 +227,7 @@ struct ConnectionEditor: View {
             }.frame(width:468,height:560)
         }
     }
-    private func field(_ title:String,placeholder:String,text:Binding<String>,monospaced:Bool = false) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.portal(size:12,weight:.medium)); TextField(placeholder,text:text).font(monospaced ? .portalMono(size:12) : .portal(size:13)).textFieldStyle(.roundedBorder) } }
+    private func field(_ title:String,placeholder:String,text:Binding<String>,monospaced:Bool = false) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.portal(size:12,weight:.medium)); TextField(placeholder,text:text).font(monospaced ? .portalMono(size:12) : .portal(size:13)).textFieldStyle(.plain).modifier(ConnectionFieldSurface()) } }
 }
 
 struct SettingsView: View {
@@ -274,7 +278,7 @@ struct SettingsView: View {
                 Toggle(isOn:$reconnect) { HStack { Text("Reconnect after an interruption"); Spacer() } }.frame(minHeight:34)
                 Divider()
                 Toggle(isOn:$hideToolbar) { HStack { Text("Hide session controls in fullscreen"); Spacer() } }.frame(minHeight:34)
-            }.toggleStyle(.switch).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
+            }.toggleStyle(PortalToggle()).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
                 .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
             VStack(alignment:.leading,spacing:8) {
                 Text("Privacy & security").font(.portal(size:13,weight:.semibold))

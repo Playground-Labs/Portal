@@ -1,11 +1,12 @@
 import AppKit
+import SwiftUI
 import Security
 import AVFoundation
 import PortalCore
 
 let supportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Portal", isDirectory: true)
 
-func showError(_ error: Error) { let alert = NSAlert(error: error); alert.runModal() }
+func showError(_ error: Error) { PortalDialog.confirm("Something went wrong",message:error.localizedDescription,cancel:false) }
 func onMain<T>(_ work: () -> T) -> T { Thread.isMainThread ? work() : DispatchQueue.main.sync(execute: work) }
 
 struct PortalError: LocalizedError { var message: String; var retryable = false; var errorDescription: String? { message } }
@@ -123,11 +124,11 @@ final class SSHTunnel {
 func runAskpass() -> Never {
     let app = NSApplication.shared; app.setActivationPolicy(.accessory); app.activate(ignoringOtherApps: true)
     let prompt = CommandLine.arguments.dropFirst(2).joined(separator: " ")
-    let alert = NSAlert(); alert.messageText = "SSH connection"; alert.informativeText = prompt
     let confirmation = ProcessInfo.processInfo.environment["SSH_ASKPASS_PROMPT"] == "confirm" || prompt.contains("yes/no")
-    alert.addButton(withTitle: confirmation ? "Trust and Connect" : "Connect"); alert.addButton(withTitle: "Cancel")
-    let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-    if !confirmation { field.placeholderString = "Password or key passphrase"; alert.accessoryView = field; alert.window.initialFirstResponder = field }
-    guard alert.runModal() == .alertFirstButtonReturn else { exit(1) }
-    print(confirmation ? "yes" : field.stringValue); exit(0)
+    let input = CredentialInput(username:"")
+    let dialog = PortalDialog()
+    guard dialog.run("SSH connection",message:prompt,accept:confirmation ? "Trust and Connect" : "Connect",content:{
+        if !confirmation { CredentialFields(input:input,needsUser:false,showsRemember:false,passwordPrompt:"Password or key passphrase") }
+    }) else { exit(1) }
+    print(confirmation ? "yes" : input.password); exit(0)
 }

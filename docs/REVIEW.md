@@ -39,3 +39,11 @@ One finding resolved: RSA input tests initially checked only local write success
 Validation: all 22 tests pass; release app builds and passes signature verification. A separate VNC-password run with `OPENSSL_MODULES` pointed at the bundled provider passes; the provider carries its own loader-relative dependency path. The real WayVNC endpoint now negotiates RSA-AES and reaches its host-key trust prompt. A fully authenticated desktop on that host remains user verification, pending their trust decision and credentials. No server settings were changed and no deployment occurred.
 
 Standards: 1 finding resolved (incorrect SASL warning). Spec: 1 finding resolved (missing independent input assertion).
+
+## App-wide design sweep — October 1, 2026
+
+Replaced remaining in-app native dropdowns, switches, disclosure controls, alerts, credential prompts, rename prompts, and About panel with Portal's shared controls. Fields use the Quick Connect surface; popover choices and actions use Inter, amber selection, and rounded hover surfaces. Session submenus expand inline. OS-owned window controls, menu bar, file chooser, and Keychain permission dialogs remain native.
+
+Standards review found missing dropdown accessibility values; spec review also found missing switch hover feedback and initial SSH password focus. All three were corrected in the shared controls. Authentication decisions, fingerprint validation, Keychain writes, and cancellation checks retain their existing behavior.
+
+Validation: release app built successfully; existing 22 tests passed. Inspected editor and settings in dark mode, settings in light mode, dropdown selection and collapse, session controls and fullscreen enter/exit, and real-host credential presentation without entering credentials. Username receives initial focus; Tab moves to password; closing the dialog cancels the connection. SSH reuses this same focused credential component; an end-to-end SSH login was not exercised.

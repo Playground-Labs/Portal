@@ -29,3 +29,7 @@ One native window per active computer. Compact title bar: centered computer name
 Address parsing; saving/loading computers without passwords; real local RFB integration for authentication, framebuffer, input, clipboard, resizing and QEMU audio. Test these public boundaries, not private implementation structure.
 
 Review baseline: initial empty commit `3f809e753305751b854040323ace9a1b05921f41`. Commit implementation to the existing main branch. No deployment is authorized.
+
+### Consistent app-owned controls
+
+All app-owned fields, toggles, dropdowns, action menus, disclosures, dialogs, and About content use Portal's shared visual language. Credential, trust, SSH, error, removal, and rename prompts use custom Portal panels. Session submenu choices expand within their panel. Retain OS-owned window controls, menu bar integration, file chooser, and Keychain permission dialogs.

@@ -5,11 +5,12 @@ import PortalCore
 struct SessionView: View {
     @ObservedObject var session: Session
     @State private var fullscreen = false
+    @State private var controlsOpen = false
     @State private var revealControls = false
     @State private var showHint = false
     @State private var hintWork: DispatchWorkItem?
     @AppStorage("hideFullscreenToolbar") private var hideToolbar = true
-    private var controlsVisible: Bool { !fullscreen || !hideToolbar || revealControls }
+    private var controlsVisible: Bool { !fullscreen || !hideToolbar || revealControls || controlsOpen }
     var body: some View {
         PortalAppearance {
             VStack(spacing:0) {
@@ -19,7 +20,7 @@ struct SessionView: View {
                     if !session.connected {
                         Color.black.opacity(0.72)
                         VStack(spacing:16) {
-                            if session.error.isEmpty { ProgressView().controlSize(.large) } else { Image(systemName:session.retrying ? "arrow.clockwise" : "network.slash").font(.system(size:30,weight:.light)) }
+                            if session.error.isEmpty { PortalProgress() } else { Image(systemName:session.retrying ? "arrow.clockwise" : "network.slash").font(.system(size:30,weight:.light)) }
                             Text(session.status).font(.portal(size:20,weight:.semibold))
                             Text(session.computer.name).foregroundStyle(.secondary)
                             if !session.error.isEmpty { Text(session.error).font(.portal(size:12)).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled).frame(maxWidth:420) }
@@ -27,7 +28,7 @@ struct SessionView: View {
                         }.padding(32).foregroundStyle(.white).colorScheme(.dark)
                     }
                     if showHint && session.connected {
-                        VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.portal(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(.regularMaterial,in:Capsule()).padding(.bottom,24) }.allowsHitTesting(false)
+                        VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.portal(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(Color.portalBackground,in:RoundedRectangle(cornerRadius:7)).padding(.bottom,24) }.allowsHitTesting(false)
                     }
                     if fullscreen && hideToolbar { VStack { Color.clear.frame(height:8).contentShape(Rectangle()).onHover { over in if over { revealControls = true } }; Spacer() } }
                 }
@@ -40,49 +41,58 @@ struct SessionView: View {
             }
         }
     }
+    private func toolbarIcon(_ name:String) -> some View { Image(systemName:name).resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32).foregroundStyle(.secondary) }
     private var toolbar: some View {
         HStack(spacing:6) {
             Spacer().frame(width:76)
             Spacer()
             HStack(spacing:6) { if session.encrypted { Image(systemName:"lock.fill").font(.system(size:9)).foregroundStyle(.secondary) }; Text(session.computer.name).font(.portal(size:12,weight:.medium)).lineLimit(1) }
             Spacer()
-            Menu {
-                Picker("Display sizing",selection:$session.computer.sizing) { Text("Automatic resize, or fit").tag(DisplaySizing.automatic); Text("Fit to Window").tag(DisplaySizing.fit); Text("Actual Size").tag(DisplaySizing.actual) }
+            PortalPopover(onPresentationChange:{ controlsOpen = $0 }) { toolbarIcon("display") } content: {
+                Text("Display").font(.portal(size:14,weight:.semibold))
+                PortalChoice("Sizing",selection:$session.computer.sizing,options:DisplaySizing.choices)
+                PortalChoice("Image quality",selection:$session.computer.quality,options:ImageQuality.choices)
                 Divider()
-                Button("All Displays") { session.selectedScreen = nil }
-                ForEach(Array(session.screens.enumerated()),id:\.element.id) { index, screen in Button("Display \(index+1) · \(screen.width) × \(screen.height)") { session.selectedScreen = screen.id } }
-                Divider()
-                Picker("Image quality",selection:$session.computer.quality) { ForEach(ImageQuality.allCases,id:\.self) { Text($0.rawValue.capitalized).tag($0) } }
-                Button(fullscreen ? "Exit Fullscreen" : "Enter Fullscreen") { session.window?.toggleFullScreen(nil) }
-            } label: { Image(systemName:"display").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Display").accessibilityLabel("Display controls")
-            Menu {
-                if session.audioAvailable {
-                    Toggle("Play Remote Audio",isOn:Binding(get:{ session.computer.audioEnabled },set:session.setAudio))
-                    Menu("Volume") { ForEach([25,50,75,100],id:\.self) { volume in Button("\(volume)%") { session.computer.volume = Float(volume)/100; session.updatePreferences() } } }
-                    if !session.audioError.isEmpty { Text(session.audioError) }
-                } else { Text("Audio unavailable"); Text("This server does not provide compatible audio.") }
-            } label: { Image(systemName:session.audioAvailable && session.computer.audioEnabled ? "speaker.wave.2" : "speaker.slash").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help(session.audioAvailable ? "Sound" : "Audio unavailable on this server").accessibilityLabel("Sound controls")
-            Menu {
-                Text(session.status)
-                Text(session.computer.address).font(.portalMono(size:12))
-                Text(session.encrypted ? "Encrypted connection" : "Unencrypted connection")
-                if let image = session.image { Text("\(image.width) × \(image.height)") }
-                Divider()
-                Toggle("View Only",isOn:$session.computer.viewOnly)
-                Picker("Clipboard",selection:$session.computer.clipboard) { Text("Share Both Ways").tag(ClipboardMode.bidirectional); Text("Receive Only").tag(ClipboardMode.receive); Text("Off").tag(ClipboardMode.off) }
-                if !session.clipboardError.isEmpty { Text(session.clipboardError) }
-                Menu("Send Special Keys") {
-                    Button("Control + Alt + Delete") { session.special([0xffe3,0xffe9,0xffff]) }
-                    Button("Command / Windows Key") { session.special([0xffeb]) }
-                    Button("Escape") { session.special([0xff1b]) }
-                    Button("Print Screen") { session.special([0xff61]) }
+                PortalAction("All displays",selected:session.selectedScreen == nil) { session.selectedScreen = nil }
+                ForEach(Array(session.screens.enumerated()),id:\.element.id) { index, screen in
+                    PortalAction("Display \(index+1) · \(screen.width) × \(screen.height)",selected:session.selectedScreen == screen.id) { session.selectedScreen = screen.id }
                 }
-                Text("Release keyboard: ⌃⌥Esc")
+                PortalAction(fullscreen ? "Exit fullscreen" : "Enter fullscreen") { session.window?.toggleFullScreen(nil) }
+            }.help("Display").accessibilityLabel("Display controls")
+            PortalPopover(onPresentationChange:{ controlsOpen = $0 }) { toolbarIcon(session.audioAvailable && session.computer.audioEnabled ? "speaker.wave.2" : "speaker.slash") } content: {
+                Text("Sound").font(.portal(size:14,weight:.semibold))
+                if session.audioAvailable {
+                    Toggle("Play remote audio",isOn:Binding(get:{ session.computer.audioEnabled },set:session.setAudio))
+                    PortalChoice("Volume",selection:Binding(get:{ session.computer.volume },set:{ session.computer.volume = $0; session.updatePreferences() }),options:[Float(0.25),0.5,0.75,1].map { ($0,"\(Int($0*100))%") })
+                    if !session.audioError.isEmpty { Text(session.audioError).foregroundStyle(.secondary) }
+                } else {
+                    Text("Audio unavailable").font(.portal(size:12,weight:.medium))
+                    Text("This server does not provide compatible audio.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                }
+            }.help("Sound").accessibilityLabel("Sound controls")
+            PortalPopover(onPresentationChange:{ controlsOpen = $0 }) { toolbarIcon("ellipsis") } content: {
+                Text(session.status).font(.portal(size:14,weight:.semibold))
+                Text(session.computer.address).font(.portalMono(size:11)).textSelection(.enabled)
+                Text(session.encrypted ? "Encrypted connection" : "Unencrypted connection").foregroundStyle(.secondary)
+                if let image = session.image { Text("\(image.width) × \(image.height)").foregroundStyle(.secondary) }
                 Divider()
-                Button("Reconnect") { session.start() }
-                Button("Disconnect") { session.window?.close() }
-            } label: { Image(systemName:"ellipsis").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help("Session").accessibilityLabel("Session controls")
-        }.menuStyle(.button).buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,6).frame(height:44).background(Color.portalBackground)
+                Toggle("View only",isOn:$session.computer.viewOnly)
+                PortalChoice("Clipboard",selection:$session.computer.clipboard,options:ClipboardMode.choices)
+                if !session.clipboardError.isEmpty { Text(session.clipboardError).foregroundStyle(.secondary) }
+                PortalPopover {
+                    HStack { Text("Send special keys"); Spacer(); Image(systemName:"chevron.right") }.padding(10)
+                } content: {
+                    PortalAction("Control + Alt + Delete") { session.special([0xffe3,0xffe9,0xffff]) }
+                    PortalAction("Command / Windows key") { session.special([0xffeb]) }
+                    PortalAction("Escape") { session.special([0xff1b]) }
+                    PortalAction("Print Screen") { session.special([0xff61]) }
+                }
+                Text("Release keyboard: ⌃⌥Esc").font(.portal(size:11)).foregroundStyle(.secondary)
+                Divider()
+                PortalAction("Reconnect") { session.start() }
+                PortalAction("Disconnect") { session.window?.close() }
+            }.help("Session").accessibilityLabel("Session controls")
+        }.buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,6).frame(height:44).background(Color.portalBackground)
         .onHover { over in if fullscreen && hideToolbar && !over { DispatchQueue.main.asyncAfter(deadline:.now()+1) { revealControls = false } } }
         .onChange(of:session.computer.sizing) { _,_ in session.updatePreferences() }
         .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }

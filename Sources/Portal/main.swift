@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     @objc func showHome() { home?.makeKeyAndOrderFront(nil) }
     @objc func settings() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalSettings"),object:nil) }
     @objc func addComputer() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalAddComputer"),object:nil) }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"Portal",.applicationVersion:"0.1.0",.credits:NSAttributedString(string:"A simple, native VNC client.\nFree software, licensed under GPL-2.0-or-later.\nPowered by LibVNCClient.")]) }
+    @objc func about() { PortalDialog.confirm("Portal",message:"Your 127.0.0.1 away from home\n\nVersion 0.1.0\nFree software, licensed under GPL-2.0-or-later.\nPowered by LibVNCClient.",cancel:false) }
     func applicationShouldHandleReopen(_ sender:NSApplication,hasVisibleWindows:Bool) -> Bool { showHome(); return true }
     func applicationWillTerminate(_ notification:Notification) { model.stopAll() }
     func application(_ application:NSApplication,open urls:[URL]) { for url in urls where url.scheme == "vnc" { do { let endpoint = try Endpoint(url.absoluteString); model.connect(Computer(name:endpoint.host,address:endpoint.address)) } catch { model.alert = error.localizedDescription } } }

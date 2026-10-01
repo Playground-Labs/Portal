@@ -180,13 +180,9 @@ final class Session: ObservableObject {
         guard isCurrent(workerGeneration) else { return nil }
         if !promptedCredential { promptedCredential = true; if !skipStoredCredential, (!needsUser || !computer.username.isEmpty), let stored = Keychain.read(computer.credentialAccount) { credential = stored; return (computer.username,stored) } }
         rememberCredential = false
-        let alert = NSAlert(); alert.messageText = "Connect to \(computer.name)"; alert.informativeText = "Enter the credentials required by the remote computer."
-        alert.addButton(withTitle: "Connect"); alert.addButton(withTitle: "Cancel")
         let input = CredentialInput(username:computer.username)
-        let fields = NSHostingView(rootView:PortalAppearance { CredentialFields(input:input,needsUser:needsUser) })
-        fields.setFrameSize(fields.fittingSize)
-        alert.accessoryView = fields
-        guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return nil }
+        let dialog = PortalDialog()
+        guard dialog.run("Connect to \(computer.name)",message:"Enter the credentials required by the remote computer.",accept:"Connect",content:{ CredentialFields(input:input,needsUser:needsUser) }), isCurrent(workerGeneration) else { return nil }
         computer.username = input.username; credential = input.password; rememberCredential = input.remember
         return (computer.username,input.password)
     }
@@ -196,11 +192,9 @@ final class Session: ObservableObject {
         let trustKey = "\(kind == 3 ? "rsa-key" : "certificate"):\(computer.destinationIdentity)"
         let previousKey = UserDefaults.standard.string(forKey: trustKey)
         if kind == 3, previousKey == detail { return true }
-        let alert = NSAlert(); alert.alertStyle = .warning
-        alert.messageText = kind == 1 ? "This connection isn’t encrypted" : (kind == 3 && previousKey != nil ? "This computer’s identity has changed" : "Verify this computer’s identity")
-        alert.informativeText = kind == 1 ? "Your screen, clipboard, and input may be visible to others on this network. Use an SSH tunnel or a trusted VPN when needed. Portal cannot detect your VPN." : "Confirm this SHA-256 fingerprint with the computer’s owner before trusting it. A changed fingerprint may indicate a different computer.\n\n\(detail)"
-        alert.addButton(withTitle: kind == 1 ? "Connect Anyway" : "Trust and Connect"); alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return false }
+        let title = kind == 1 ? "This connection isn’t encrypted" : (kind == 3 && previousKey != nil ? "This computer’s identity has changed" : "Verify this computer’s identity")
+        let message = kind == 1 ? "Your screen, clipboard, and input may be visible to others on this network. Use an SSH tunnel or a trusted VPN when needed. Portal cannot detect your VPN." : "Confirm this SHA-256 fingerprint with the computer’s owner before trusting it. A changed fingerprint may indicate a different computer.\n\n\(detail)"
+        guard PortalDialog.confirm(title,message:message,accept:kind == 1 ? "Connect Anyway" : "Trust and Connect"), isCurrent(workerGeneration) else { return false }
         if kind == 1 { computer.acceptedInsecureAddress = computer.address; save?(computer, false) }
         else { UserDefaults.standard.set(detail,forKey: trustKey) }
         return true
