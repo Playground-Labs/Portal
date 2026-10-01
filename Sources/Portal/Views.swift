@@ -39,7 +39,12 @@ struct SoftButton: ButtonStyle {
 struct PortalAppearance<Content: View>: View {
     @AppStorage("appearance") var appearance = "system"
     @ViewBuilder var content: () -> Content
-    var body: some View { content().font(.portal(size:13)).tint(.portalAccent).preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil) }
+    var body: some View {
+        content().font(.portal(size:13)).tint(.portalAccent)
+            .onChange(of:appearance,initial:true) { _,value in
+                NSApp.appearance = value == "dark" ? NSAppearance(named:.darkAqua) : value == "light" ? NSAppearance(named:.aqua) : nil
+            }
+    }
 }
 
 struct HomeView: View {
