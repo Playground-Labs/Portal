@@ -75,3 +75,9 @@ Validation: release build succeeds. On the connected host, the formerly missed u
 Fullscreen controls now overlay the desktop as a dark, bottom-rounded notch, revealed by a narrow top-center hover zone. Moving away hides it after a short delay; open menus keep it visible. Menus are centered beneath the notch. Windowed controls remain unchanged, and the obsolete fullscreen opt-out was removed from Settings. Preference observers remain active even while the toolbar is hidden.
 
 Validation: release build passes; spec review found no issues. In the connected app, verified hidden fullscreen controls, repeated top-center reveal, menu interaction below the notch, dismissal and delayed hiding, no reveal at the top-left edge, and restoration of windowed controls on fullscreen exit. Revealing controls does not change the remote viewport dimensions.
+
+## Fullscreen local cursor — October 1, 2026
+
+The fullscreen notch releases keyboard capture, but the canvas tied its transparent cursor to that capture flag. Pointer movement still reaches the remote host after keyboard release. Cursor selection now follows the connected, interactive remote image independently of keyboard capture, and cursor-update/movement events reapply it after AppKit resets. View-only and disconnected canvases retain the local arrow.
+
+Validation: a regression test first failed when updating the cursor after keyboard release, then passed with the fix; all four SessionTests pass. Release build succeeds. The rebuilt app was opened and the saved host reconnected. Live UI testing stopped after the user reported disruptive gray-screen appearances; no claim is made that this cursor change resolves that separate rendering symptom.

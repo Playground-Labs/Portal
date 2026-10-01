@@ -42,9 +42,13 @@ final class DesktopCanvas: NSView {
     private let modifierKeys: [(UInt16,UInt,UInt32)] = [(56,0x2,0xffe1),(60,0x4,0xffe2),(59,0x1,0xffe3),(62,0x2000,0xffe4),(58,0x20,0xffe9),(61,0x40,0xffea),(55,0x8,0xffeb),(54,0x10,0xffec)]
     private var tracking: NSTrackingArea?
     private static let remoteCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
+    private var usesRemoteCursor: Bool { session.connected && !session.computer.viewOnly && window?.isKeyWindow == true }
+    override func cursorUpdate(with event: NSEvent) {
+        (usesRemoteCursor && point(event) != nil ? Self.remoteCursor : NSCursor.arrow).set()
+    }
     override func resetCursorRects() {
         super.resetCursorRects()
-        if session.connected, session.captured, !session.computer.viewOnly, window?.isKeyWindow == true {
+        if usesRemoteCursor {
             addCursorRect(destinationRect.intersection(visibleRect),cursor:Self.remoteCursor)
         }
     }
@@ -85,7 +89,7 @@ final class DesktopCanvas: NSView {
     }
     override func updateTrackingAreas() {
         super.updateTrackingAreas(); if let tracking { removeTrackingArea(tracking) }
-        tracking = NSTrackingArea(rect: .zero,options:[.mouseMoved,.activeInKeyWindow,.inVisibleRect],owner:self,userInfo:nil); addTrackingArea(tracking!)
+        tracking = NSTrackingArea(rect: .zero,options:[.mouseMoved,.cursorUpdate,.activeInKeyWindow,.inVisibleRect],owner:self,userInfo:nil); addTrackingArea(tracking!)
     }
     func releaseInput() {
         guard session.captured || !held.isEmpty || buttons != 0 else { return }
@@ -99,7 +103,7 @@ final class DesktopCanvas: NSView {
         guard destination.width > 0, destination.height > 0, destination.contains(point) else { return nil }
         return (Int(source.minX+(point.x-destination.minX)*source.width/destination.width),Int(source.minY+(point.y-destination.minY)*source.height/destination.height))
     }
-    private func pointer(_ event: NSEvent) { guard let position = point(event) else { if buttons == 0 { session.pointer(x:lastPoint.0,y:lastPoint.1,buttons:0) }; return }; lastPoint = position; session.pointer(x:position.0,y:position.1,buttons:buttons) }
+    private func pointer(_ event: NSEvent) { cursorUpdate(with:event); guard let position = point(event) else { if buttons == 0 { session.pointer(x:lastPoint.0,y:lastPoint.1,buttons:0) }; return }; lastPoint = position; session.pointer(x:position.0,y:position.1,buttons:buttons) }
     override func mouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 1; pointer(event) }
     override func mouseUp(with event: NSEvent) { buttons &= ~1; pointer(event) }
     override func rightMouseDown(with event: NSEvent) { guard !session.computer.viewOnly else { return }; capture(event); buttons |= 4; pointer(event) }

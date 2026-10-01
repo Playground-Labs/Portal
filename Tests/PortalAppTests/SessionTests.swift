@@ -1,8 +1,29 @@
 import XCTest
+import AppKit
 import PortalCore
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testRemoteCursorRemainsHiddenAfterKeyboardRelease() throws {
+        let session = Session(Computer(name:"Test",address:"127.0.0.1"))
+        let canvas = DesktopCanvas(session:session)
+        let window = CursorTestWindow(contentRect:NSRect(x:0,y:0,width:100,height:100),styleMask:.borderless,backing:.buffered,defer:false)
+        window.contentView = canvas
+        session.connected = true
+        session.captured = true
+        canvas.releaseInput()
+        let event = try XCTUnwrap(NSEvent.mouseEvent(with:.mouseMoved,location:NSPoint(x:50,y:50),modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:0,pressure:0))
+        defer { NSCursor.arrow.set() }
+        NSCursor.arrow.set()
+        canvas.cursorUpdate(with:event)
+        XCTAssertFalse(NSCursor.current === NSCursor.arrow,"The remote desktop must hide the local cursor even after the notch releases keyboard capture")
+        session.computer.viewOnly = true
+        canvas.cursorUpdate(with:event)
+        XCTAssertTrue(NSCursor.current === NSCursor.arrow)
+        session.computer.viewOnly = false; session.connected = false
+        canvas.cursorUpdate(with:event)
+        XCTAssertTrue(NSCursor.current === NSCursor.arrow)
+    }
     func testCanvasReleasesControlWhenDisconnectedOrViewOnly() {
         let session = Session(Computer(name:"Test",address:"127.0.0.1"))
         let scroll = DesktopScrollView()
@@ -57,4 +78,8 @@ import PortalCore
         while let byte = try pipe.fileHandleForReading.read(upToCount:1), !byte.isEmpty { if byte[0] == 10 { break }; line.append(byte) }
         return (process,"127.0.0.1:\(String(decoding:line,as:UTF8.self))")
     }
+}
+
+private final class CursorTestWindow: NSWindow {
+    override var isKeyWindow: Bool { true }
 }
