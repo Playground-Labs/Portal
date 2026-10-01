@@ -5,6 +5,14 @@ import PortalVNC
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testRequestsNextFrameBeforeCurrentPixelsArrive() async throws {
+        let (server,address) = try peer("pipeline")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        XCTAssertEqual(firstPixel(session),[0,255,0,0],"The peer sends green only when the next request arrives before this frame's pixels")
+    }
     func testServerCursorShapeHotspotAndHide() async throws {
         let (server,address) = try peer("cursor")
         defer { if server.isRunning { server.terminate() } }

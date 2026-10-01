@@ -35,7 +35,17 @@ def connection(listener, color):
                 if not sent and mode != 'idle':
                     time.sleep(0.25)
                     header=struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)
-                    peer.sendall(header+bytes(color)*8)
+                    if mode=='pipeline':
+                        peer.sendall(header[:4])
+                        peer.settimeout(0.3)
+                        try:
+                            assert take(1)==b'\x03'
+                            assert take(9)[0]==1
+                            color=[0,255,0,0]
+                        except socket.timeout: pass
+                        peer.settimeout(15)
+                        peer.sendall(header[4:]+bytes(color)*8)
+                    else: peer.sendall(header+bytes(color)*8)
                     if mode=='burst':
                         peer.sendall(header+bytes([0,255,0,0])*8)
                     if mode=='cursor':

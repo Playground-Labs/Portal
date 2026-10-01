@@ -37,3 +37,5 @@ All app-owned fields, toggles, dropdowns, action menus, disclosures, dialogs, an
 ### Responsive remote input
 
 Idle network polling must leave the input queue available. When a server provides cursor shapes, render its cursor locally with its transparency and hotspot; otherwise retain the framebuffer cursor fallback. Portal controls keep the local system pointer.
+
+Frame requests should overlap reception/decoding of the current update. Present frames through Core Animation without rebuilding the surrounding UI for same-size frames; preserve monitor selection, fit/actual-size geometry, and frame snapshot integrity.

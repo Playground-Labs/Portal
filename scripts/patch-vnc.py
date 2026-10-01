@@ -148,3 +148,13 @@ s = s.replace(anchor, """  if (width * height == 0) {
     return TRUE;
   }""")
 cursor.write_text(s)
+
+# Pipeline the next incremental request before decoding this update's rectangles.
+s = path.read_text()
+request = "    if (!SendIncrementalFramebufferUpdateRequest(client))\n      return FALSE;\n"
+assert s.count(request) == 1
+s = s.replace(request, '')
+anchor = "    msg.fu.nRects = rfbClientSwap16IfLE(msg.fu.nRects);\n"
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + "\n" + request)
+path.write_text(s)

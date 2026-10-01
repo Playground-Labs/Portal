@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 import PortalCore
 
 struct RemoteDesktop: NSViewRepresentable {
@@ -25,13 +26,15 @@ final class DesktopScrollView: NSScrollView {
         if canvas.session.computer.viewOnly { canvas.releaseInput() }
         if !canvas.session.connected { canvas.releaseInput() }
         canvas.window?.invalidateCursorRects(for:canvas)
-        canvas.needsDisplay = true
+        canvas.refreshImage()
         canvas.session.resize(to: contentSize)
     }
 }
 
 final class DesktopCanvas: NSView {
     let session: Session
+    private let desktopLayer = CALayer()
+    private var frameObservation: AnyCancellable?
     private var monitor: Any?
     private var observers: [NSObjectProtocol] = []
     private var held: [UInt16: UInt32] = [:]
@@ -56,6 +59,10 @@ final class DesktopCanvas: NSView {
     override var acceptsFirstResponder: Bool { true }
     init(session: Session) {
         self.session = session; super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor(calibratedWhite:0.08,alpha:1).cgColor
+        layer?.addSublayer(desktopLayer)
+        frameObservation = session.frames.sink { [weak self] in self?.refreshImage() }
         setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel("Remote desktop. Click to control. Press Control Option Escape to release the keyboard.")
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown,.keyUp,.flagsChanged]) { [weak self] event in
             guard let self, event.window == self.window, self.session.captured, self.window?.firstResponder === self else { return event }
@@ -81,11 +88,19 @@ final class DesktopCanvas: NSView {
         let size = CGSize(width: source.width*scale,height: source.height*scale)
         return CGRect(x: max(0,(bounds.width-size.width)/2),y: max(0,(bounds.height-size.height)/2),width:size.width,height:size.height)
     }
-    override func draw(_ dirtyRect: NSRect) {
-        NSColor(calibratedWhite: 0.08,alpha: 1).setFill(); bounds.fill()
-        guard let image = session.image, let crop = image.cropping(to: sourceRect) else { return }
-        NSGraphicsContext.current?.imageInterpolation = session.computer.sizing == .actual ? .none : .high
-        NSImage(cgImage: crop,size: sourceRect.size).draw(in: destinationRect,from: .zero,operation: .copy,fraction:1,respectFlipped:true,hints:nil)
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() { refreshImage() }
+    func refreshImage() {
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        desktopLayer.frame = destinationRect
+        desktopLayer.contents = session.image
+        if let image = session.image {
+            let source = sourceRect
+            desktopLayer.contentsRect = CGRect(x:source.minX/CGFloat(image.width),y:source.minY/CGFloat(image.height),width:source.width/CGFloat(image.width),height:source.height/CGFloat(image.height))
+        }
+        desktopLayer.magnificationFilter = session.computer.sizing == .actual ? .nearest : .linear
+        desktopLayer.minificationFilter = .linear
     }
     override func updateTrackingAreas() {
         super.updateTrackingAreas(); if let tracking { removeTrackingArea(tracking) }

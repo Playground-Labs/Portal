@@ -6,7 +6,13 @@ import PortalVNC
 
 final class Session: ObservableObject {
     @Published var computer: Computer
-    @Published var image: CGImage?
+    let frames = PassthroughSubject<Void,Never>()
+    var image: CGImage? {
+        willSet {
+            if image?.width != newValue?.width || image?.height != newValue?.height { objectWillChange.send() }
+        }
+        didSet { frames.send() }
+    }
     @Published var remoteCursor: NSCursor?
     @Published var status = "Connecting"
     @Published var error = ""
