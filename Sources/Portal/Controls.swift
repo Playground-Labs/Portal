@@ -75,7 +75,11 @@ struct PortalAction: View {
         self.title = title; self.selected = selected; self.action = action
     }
     var body: some View {
-        Button { close(); action() } label: {
+        Button {
+            close()
+            // Let SwiftUI finish dismissing the menu before an action starts a modal loop.
+            DispatchQueue.main.async(execute:action)
+        } label: {
             HStack { Text(title); Spacer(); if selected { Image(systemName:"checkmark").foregroundStyle(Color.portalAccent) } }
                 .padding(.horizontal,10).frame(minHeight:32).contentShape(Rectangle())
         }.buttonStyle(.plain).modifier(ControlHover()).accessibilityAddTraits(selected ? .isSelected : [])

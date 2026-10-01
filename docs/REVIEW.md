@@ -81,3 +81,9 @@ Validation: release build passes; spec review found no issues. In the connected 
 The fullscreen notch releases keyboard capture, but the canvas tied its transparent cursor to that capture flag. Pointer movement still reaches the remote host after keyboard release. Cursor selection now follows the connected, interactive remote image independently of keyboard capture, and cursor-update/movement events reapply it after AppKit resets. View-only and disconnected canvases retain the local arrow.
 
 Validation: a regression test first failed when updating the cursor after keyboard release, then passed with the fix; all four SessionTests pass. Release build succeeds. The rebuilt app was opened and the saved host reconnected. Live UI testing stopped after the user reported disruptive gray-screen appearances; no claim is made that this cursor change resolves that separate rendering symptom.
+
+## Rename dialog ignores clicks — October 1, 2026
+
+Reproduced physical Save clicks being ignored while its accessibility action worked. PortalAction synchronously started a modal dialog before SwiftUI finished dismissing the source popover. Actions now run on the next main-queue turn, allowing menu dismissal to complete before a modal event loop begins. This shared boundary covers sibling menu actions as well.
+
+Validation: release build passes. In a separate app instance, the same physical Save click that failed before the change closed the dialog immediately; a physical Cancel click also closed it. The existing nickname was preserved. The user's original running app and connection were not restarted. Regression procedure: open saved-computer actions → Rename, then physically click Save or Cancel, including their padded corners; each must close on the first click.
