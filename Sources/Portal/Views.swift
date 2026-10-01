@@ -56,7 +56,7 @@ struct HomeView: View {
             VStack(spacing:0) {
                 ScrollView {
                     VStack(alignment:.leading,spacing:26) {
-                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.portal(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.portal(size:13)) }
+                        VStack(alignment:.leading,spacing:6) { Text("Portal").font(.portal(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.portal(size:13)) }
                         HStack(spacing:12) {
                             TextField("Enter an address to connect",text:$address).font(.portalMono(size:12)).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
                             Button("Connect",action:quickConnect).buttonStyle(SoftButton(primary:true)).disabled(address.trimmingCharacters(in:.whitespaces).isEmpty)
