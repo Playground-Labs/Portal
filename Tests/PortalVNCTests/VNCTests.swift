@@ -2,6 +2,9 @@ import XCTest
 import PortalVNC
 
 private final class Capture {
+    var inputClient: OpaquePointer?
+    var inputAfter = Date.distantFuture
+    var inputSent = false
     var pixels = Data()
     var clipboard = ""
     var screens: [PortalScreen] = []
@@ -28,6 +31,7 @@ final class VNCTests: XCTestCase {
     func testRSAAESEncryptedSession() throws { try rsaExchange("rsa-129") }
     func testPrefersEncryptedAuthenticationOverServerOrder() throws { try rsaExchange("rsa-129-preference") }
     func testRSAAESFrameSplitAcrossNetworkPackets() throws { try rsaExchange("rsa-129-fragment") }
+    func testRSAAESInputDuringFragmentedRecord() throws { try rsaExchange("rsa-129-fragment-input") }
     func testRSAAES128Session() throws { try rsaExchange("rsa-5") }
     func testRSAAESAuthenticationOnly() throws { try rsaExchange("rsa-6"); try rsaExchange("rsa-130") }
     func testRSAAESRejectsTamperedRecordBeforeCredentials() throws { try rsaExchange("rsa-129-tamper") }
@@ -58,6 +62,15 @@ final class VNCTests: XCTestCase {
             user?.pointee = strdup("fixture"); password?.pointee = strdup("secret"); return 1
         }
         cb.frame = { ctx,bytes,w,h in Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().pixels = Data(bytes: bytes!, count: Int(w*h*4)) }
+        if mode.contains("fragment-input") {
+            cb.input = { ctx in
+                let capture = Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue()
+                guard !capture.inputSent, Date() >= capture.inputAfter, let client = capture.inputClient else { return }
+                capture.inputSent = true
+                _ = portal_vnc_key(client,0xff0d,1)
+                _ = portal_vnc_key(client,0xff0d,0)
+            }
+        }
         let client = try XCTUnwrap(portal_vnc_create(cb)); var destroyed = false
         defer { if !destroyed { portal_vnc_destroy(client) } }
         let connected = portal_vnc_connect(client,"127.0.0.1",port,0,0,"")
@@ -71,6 +84,7 @@ final class VNCTests: XCTestCase {
         XCTAssertEqual(capture.trustPrompts,1)
         XCTAssertEqual(capture.credentialPrompts,1)
         XCTAssertEqual(portal_vnc_encrypted(client), mode == "rsa-6" || mode == "rsa-130" ? 0 : 1)
+        capture.inputClient = client; capture.inputAfter = Date().addingTimeInterval(0.05)
         let deadline = Date().addingTimeInterval(4)
         while capture.pixels.isEmpty, Date() < deadline {
             guard portal_vnc_poll(client) >= 0 else { XCTFail(String(cString:portal_vnc_error(client))); return }
@@ -82,6 +96,9 @@ final class VNCTests: XCTestCase {
         let observed = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: output)) as? [String:Any])
         XCTAssertEqual(observed["authenticated"] as? Bool,true)
         XCTAssertEqual(observed["key"] as? [Int],[1,97])
+        if mode.contains("fragment-input") {
+            XCTAssertEqual(observed["input_during_read"] as? [[Int]],[[1,65293],[0,65293]])
+        }
     }
     private func exchange(mode: String) throws {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

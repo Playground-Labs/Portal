@@ -158,3 +158,26 @@ anchor = "    msg.fu.nRects = rfbClientSwap16IfLE(msg.fu.nRects);\n"
 assert s.count(anchor) == 1
 s = s.replace(anchor, anchor + "\n" + request)
 path.write_text(s)
+
+# Drain only input writes while a fragmented message is waiting for more bytes.
+s = header.read_text()
+anchor = '  rfbBool (*portalWrite)(struct _rfbClient *, const char *, unsigned int);'
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + '\n  void (*portalPumpInput)(struct _rfbClient *);')
+header.write_text(s)
+s = sockets.read_text()
+anchor = 'static int PortalWaitForSocket(rfbClient* client,unsigned int usecs)\n{'
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + """
+  if (client->portalPumpInput && usecs > 5000) {
+    while (usecs > 0) {
+      unsigned int slice = usecs > 5000 ? 5000 : usecs;
+      int result = PortalWaitForSocket(client, slice);
+      if (result != 0) return result;
+      usecs -= slice;
+    }
+    return 0;
+  }
+  if (client->portalPumpInput) client->portalPumpInput(client);
+""")
+sockets.write_text(s)

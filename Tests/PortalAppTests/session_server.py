@@ -23,6 +23,7 @@ def connection(listener, color):
     fmt=struct.pack('!BBBBHHHBBBxxx',32,24,0,1,255,255,255,0,8,16)
     peer.sendall(struct.pack('!HH',4,2)+fmt+struct.pack('!I',4)+b'Test')
     sent=False
+    key_downs=key_ups=0
     try:
         while True:
             kind=take(1)[0]
@@ -55,7 +56,28 @@ def connection(listener, color):
                     if mode=='reconnect' and color[0]==255:
                         time.sleep(0.3); break
             elif kind==4:
-                take(7)
+                key = take(7)
+                if mode=='key-count':
+                    if key[0]: key_downs+=1
+                    else: key_ups+=1
+                    peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)+bytes([key_downs,key_ups,0,0])*8)
+                if mode=='key-delay' and key[0]:
+                    header=struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)
+                    peer.sendall(header+bytes([0]))
+                    peer.settimeout(0.5)
+                    released=False
+                    try:
+                        while not released:
+                            message=take(1)[0]
+                            if message==3: take(9)
+                            elif message==4:
+                                event=take(7)
+                                released=event[0]==0 and event[3:]==key[3:]
+                            else: raise AssertionError(message)
+                    except socket.timeout: pass
+                    peer.settimeout(15)
+                    color=[0,255,0,0] if released else [0,0,255,0]
+                    peer.sendall((bytes(color)*8)[1:])
                 if mode=='cursor': peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,0,0,-239))
             elif kind==5: take(5)
             else: raise AssertionError(kind)

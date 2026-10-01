@@ -108,8 +108,8 @@ final class DesktopCanvas: NSView {
     }
     func releaseInput() {
         guard session.captured || !held.isEmpty || buttons != 0 else { return }
-        for key in held.values { session.send { _ = portal_vnc_key($0,key,0) } }; held.removeAll()
-        if buttons != 0 { let (x,y) = lastPoint; session.send { _ = portal_vnc_pointer($0,Int32(x),Int32(y),0) }; buttons = 0 }
+        for key in held.values { session.sendInput { _ = portal_vnc_key($0,key,0) } }; held.removeAll()
+        if buttons != 0 { let (x,y) = lastPoint; session.sendInput { _ = portal_vnc_pointer($0,Int32(x),Int32(y),0) }; buttons = 0 }
         session.captured = false
         window?.invalidateCursorRects(for:self)
     }

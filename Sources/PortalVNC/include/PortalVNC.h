@@ -6,6 +6,7 @@ typedef struct PortalVNC PortalVNC;
 typedef struct { uint32_t id; int x, y, width, height; } PortalScreen;
 typedef struct {
     void *context;
+    void (*input)(void *); /* Drain queued input on the VNC worker during reads; never destroy/reconfigure the client here. */
     void (*frame)(void *, const uint8_t *, int, int);
     void (*cursor)(void *, const uint8_t *, int, int, int, int); /* RGBA, width/height, hotspot; NULL hides the cursor. */
     void (*clipboard)(void *, const char *, int, int);

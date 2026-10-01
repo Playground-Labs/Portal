@@ -30,6 +30,8 @@ final class Session: ObservableObject {
     weak var window: NSWindow?
     let queue = DispatchQueue(label: "app.portal.session", qos: .userInteractive)
     private var client: OpaquePointer?
+    private let inputLock = NSLock()
+    private var pendingInput: [(Int,(OpaquePointer) -> Void)] = []
     private var tunnel: SSHTunnel?
     private var tunnelReady = false
     private var generation = 0
@@ -70,6 +72,7 @@ final class Session: ObservableObject {
                 }
                 guard isCurrent(token) else { cleanup(); return }
                 var cb = PortalCallbacks(); cb.context = Unmanaged.passUnretained(self).toOpaque()
+                cb.input = { ctx in Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue().drainInput() }
                 cb.frame = { ctx, bytes, width, height in
                     let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
                     session.receiveFrame(bytes!, width: Int(width), height: Int(height))
@@ -173,8 +176,18 @@ final class Session: ObservableObject {
     }
     func stop() { _ = advance(); resizeWork?.cancel(); timer?.invalidate(); connected = false; captured = false; retrying = false; status = "Disconnected"; audio.stop(); queue.async { [self] in cleanup() } }
     func send(_ action: @escaping (OpaquePointer) -> Void) { let token = generation; queue.async { [self] in if isCurrent(token), let client { action(client) } } }
-    func key(_ key: UInt32, down: Bool) { guard connected, !computer.viewOnly else { return }; send { _ = portal_vnc_key($0,key,down ? 1 : 0) } }
-    func pointer(x: Int, y: Int, buttons: Int) { guard connected, !computer.viewOnly else { return }; send { _ = portal_vnc_pointer($0,Int32(x),Int32(y),Int32(buttons)) } }
+    func sendInput(_ action: @escaping (OpaquePointer) -> Void) {
+        let token = generation
+        inputLock.lock(); pendingInput.append((token,action)); inputLock.unlock()
+        queue.async { [self] in drainInput() }
+    }
+    private func drainInput() {
+        inputLock.lock(); let pending = pendingInput; pendingInput.removeAll(keepingCapacity:true); inputLock.unlock()
+        guard let client else { return }
+        for (token,action) in pending where workerGeneration == token && isCurrent(token) { action(client) }
+    }
+    func key(_ key: UInt32, down: Bool) { guard connected, !computer.viewOnly else { return }; sendInput { _ = portal_vnc_key($0,key,down ? 1 : 0) } }
+    func pointer(x: Int, y: Int, buttons: Int) { guard connected, !computer.viewOnly else { return }; sendInput { _ = portal_vnc_pointer($0,Int32(x),Int32(y),Int32(buttons)) } }
     func special(_ keys: [UInt32]) { keys.forEach { key($0,down: true) }; keys.reversed().forEach { key($0,down: false) } }
     func resize(to size: CGSize) {
         guard connected, canResize, computer.sizing == .automatic, selectedScreen == nil, size.width >= 320, size.height >= 200 else { return }

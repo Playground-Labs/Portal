@@ -5,6 +5,27 @@ import PortalVNC
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
+        let (server,address) = try peer("key-count")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        for _ in 0..<2 { session.key(0xff0d,down:true); session.key(0xff0d,down:false) }
+        try await until { self.firstPixel(session) == [2,2,0,0] }
+    }
+    func testKeyReleaseReachesServerDuringPartialFrameRead() async throws {
+        let (server,address) = try peer("key-delay")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        session.key(0xff0d,down:true)
+        try await Task.sleep(nanoseconds:100_000_000)
+        session.key(0xff0d,down:false)
+        try await until { self.firstPixel(session) != [255,0,0,0] }
+        XCTAssertEqual(firstPixel(session),[0,255,0,0],"A slow frame must not delay Enter release until the remote machine can repeat it")
+    }
     func testRequestsNextFrameBeforeCurrentPixelsArrive() async throws {
         let (server,address) = try peer("pipeline")
         defer { if server.isRunning { server.terminate() } }

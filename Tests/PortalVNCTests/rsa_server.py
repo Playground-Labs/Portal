@@ -63,6 +63,12 @@ try:
         packet = header + encrypted + tag
         if fragment_frames:
             peer.sendall(packet[:2])
+            if 'fragment-input' in mode:
+                events=[]
+                for _ in range(2):
+                    assert take(1)==b'\x04'
+                    events.append(list(struct.unpack('!BxxI',take(7))))
+                observed['input_during_read']=events
             time.sleep(0.05)
             peer.sendall(packet[2:6])
             time.sleep(0.05)

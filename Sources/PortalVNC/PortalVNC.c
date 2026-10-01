@@ -26,8 +26,8 @@ struct PortalVNC {
 };
 static char tag;
 static _Thread_local PortalVNC *active;
-static void clear_log_scope(PortalVNC **scope) { active=NULL; }
-#define LOG_SCOPE(value) PortalVNC *log_scope __attribute__((cleanup(clear_log_scope))) = (active=(value))
+static void clear_log_scope(PortalVNC **scope) { active=*scope; }
+#define LOG_SCOPE(value) PortalVNC *log_scope __attribute__((cleanup(clear_log_scope))) = active; active=(value)
 static PortalVNC *owner(rfbClient *c) { return rfbClientGetClientData(c, &tag); }
 static void log_message(const char *format, ...) {
     if (!active) return;
@@ -91,6 +91,10 @@ static rfbBool certificate(rfbClient *c,const char *subject,time_t from,time_t u
     if(length!=32) return FALSE;
     for(int i=0;i<32;i++) snprintf(text+i*2,3,"%02x",hash[i]);
     return p->cb.authorize && p->cb.authorize(p->cb.context,2,text);
+}
+static void pump_input(rfbClient *c) {
+    PortalVNC *p=owner(c);
+    if(p->ready && !p->fatal && p->cb.input) p->cb.input(p->cb.context);
 }
 static void cursor(rfbClient *c, int x, int y, int width, int height, int bytesPerPixel) {
     PortalVNC *p=owner(c);
@@ -169,7 +173,7 @@ PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     p->cb=cb; p->client=rfbGetClient(8,3,4);
     if(!p->client) { free(p); return NULL; }
     rfbClient *c=p->client; rfbClientSetClientData(c,&tag,p);
-    c->MallocFrameBuffer=allocate; c->GotFrameBufferUpdate=damage; c->FinishedFrameBufferUpdate=frame;
+    c->portalPumpInput=pump_input; c->MallocFrameBuffer=allocate; c->GotFrameBufferUpdate=damage; c->FinishedFrameBufferUpdate=frame;
     c->GotXCutText=clipboard; c->GotXCutTextUTF8=clipboard_utf8;
     c->GetPassword=password; c->GetUser=sasl_user; c->GetCredential=credential; c->GetX509CertFingerprintMismatchDecision=certificate;
     c->canHandleNewFBSize=TRUE; c->connectTimeout=8; c->readTimeout=8;
