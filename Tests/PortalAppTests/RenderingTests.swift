@@ -8,8 +8,7 @@ import PortalVNC
     func testDisplayPreservesOrientationMonitorCropAndLetterboxing() throws {
         let session = Session(Computer(name:"Test",address:"127.0.0.1"))
         let pixels = Data([255,0,0,0, 0,255,0,0, 0,0,255,0, 255,255,0,0])
-        let provider = try XCTUnwrap(CGDataProvider(data:pixels as CFData))
-        session.image = try XCTUnwrap(CGImage(width:2,height:2,bitsPerComponent:8,bitsPerPixel:32,bytesPerRow:8,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGBitmapInfo(rawValue:CGImageAlphaInfo.noneSkipLast.rawValue),provider:provider,decode:nil,shouldInterpolate:false,intent:.defaultIntent))
+        session.image = try XCTUnwrap(prepareFrameImage(pixels,width:2,height:2,colorSpace:CGColorSpaceCreateDeviceRGB()))
         let canvas = DesktopCanvas(session:session)
         let window = NSWindow(contentRect:NSRect(x:0,y:0,width:100,height:100),styleMask:.borderless,backing:.buffered,defer:false)
         window.contentView = canvas

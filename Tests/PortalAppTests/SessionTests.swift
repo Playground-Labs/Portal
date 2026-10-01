@@ -16,6 +16,27 @@ import PortalVNC
         session.key(0x62,down:true); session.key(0x62,down:false)
         try await until { self.firstPixel(session) == [255,255,0,0] }
     }
+    func testBlockedFramePreparationLeavesInputFreeAndStopDiscardsTheFrame() async throws {
+        let (server,address) = try peer("key-count")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer)
+        session.frameQueue.suspend()
+        session.start()
+        try await until { session.connected }
+        session.key(0xff0d,down:true); session.key(0xff0d,down:false)
+        let inputDelivered = expectation(description:"Input worker runs while image preparation is blocked")
+        session.send { _ in inputDelivered.fulfill() }
+        await fulfillment(of:[inputDelivered],timeout:1)
+        try await Task.sleep(nanoseconds:350_000_000)
+        XCTAssertNil(session.image)
+        session.stop()
+        session.frameQueue.resume()
+        let drained = expectation(description:"Pending frame is discarded after stop")
+        session.frameQueue.async { DispatchQueue.main.async { drained.fulfill() } }
+        await fulfillment(of:[drained],timeout:1)
+        XCTAssertNil(session.image)
+    }
     func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
         let (server,address) = try peer("key-count")
         defer { if server.isRunning { server.terminate() } }
@@ -144,8 +165,11 @@ import PortalVNC
     }
     private func blockUIForBurst() { Thread.sleep(forTimeInterval:0.6) }
     private func firstPixel(_ session: Session) -> [UInt8] {
-        guard let data = session.image?.dataProvider?.data else { return [] }
-        return Array((data as Data).prefix(4))
+        guard let image = session.image,
+              let context = CGContext(data:nil,width:1,height:1,bitsPerComponent:8,bytesPerRow:4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue) else { return [] }
+        context.draw(image,in:CGRect(x:0,y:1-image.height,width:image.width,height:image.height))
+        guard let bytes = context.data?.assumingMemoryBound(to:UInt8.self) else { return [] }
+        return [bytes[0],bytes[1],bytes[2],0]
     }
     private func until(timeout:Double = 5,_ predicate:() -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)

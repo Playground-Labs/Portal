@@ -47,6 +47,7 @@ final class Session: ObservableObject {
     private var timer: Timer?
     private var pasteboardCount = NSPasteboard.general.changeCount
     private let audio = AudioPlayer()
+    let frameQueue = DispatchQueue(label:"app.portal.frames",qos:.userInitiated)
     private let frameLock = NSLock()
     private var pendingFrame: (Data, Int, Int, Int)?
     private var frameDeliveryScheduled = false
@@ -148,10 +149,27 @@ final class Session: ObservableObject {
         frameDeliveryScheduled = true
         frameLock.unlock()
         guard needsDelivery else { return }
-        DispatchQueue.main.async { [self] in
-            frameLock.lock(); let frame = pendingFrame; pendingFrame = nil; frameDeliveryScheduled = false; frameLock.unlock()
-            guard let (data,width,height,token) = frame, isCurrent(token), let provider = CGDataProvider(data: data as CFData) else { return }
-            image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue).union(.byteOrder32Big), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+        DispatchQueue.main.async { [self] in prepareNextFrame() }
+    }
+    private func prepareNextFrame() {
+        frameLock.lock()
+        let frame = pendingFrame; pendingFrame = nil
+        if frame == nil { frameDeliveryScheduled = false }
+        frameLock.unlock()
+        guard let (data,width,height,token) = frame else { return }
+        let space = window?.screen?.colorSpace?.cgColorSpace ?? CGColorSpaceCreateDeviceRGB()
+        // One conversion in flight and one replaceable pending frame keep latency and memory bounded.
+        frameQueue.async { [self] in
+            let prepared = autoreleasepool {
+                isCurrent(token) ? prepareFrameImage(data,width:width,height:height,colorSpace:space) : nil
+            }
+            DispatchQueue.main.async { [self] in
+                if isCurrent(token) {
+                    if let prepared { image = prepared }
+                    else { stop(); error = "Could not prepare the remote screen image." }
+                }
+                prepareNextFrame()
+            }
         }
     }
     // Idle pacing leaves the serial queue free for input; active reads still finish one RFB message.
