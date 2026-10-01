@@ -63,3 +63,9 @@ Session controls now open inside the window rather than in a separate popover th
 The local cursor uses a transparent cursor rect only over the captured, connected remote image. Portal controls, letterboxing, released input, view-only mode, and disconnected sessions retain the local cursor. This keeps the server-rendered cursor visible without a duplicate local pointer. Capture release is idempotent.
 
 Validation: release build passes; all three SessionTests pass, including a regression check for capture release on disconnect/view-only. On the real connected WayVNC desktop, verified remote capture, visible three-dot controls afterward, switching to Sound, and Escape dismissal. Standards/spec review findings resolved and the application remains connected.
+
+## Session toolbar missed clicks — October 1, 2026
+
+Reproduced with a physical coordinate click inside the menu's 32 × 32 frame but outside its icon: no action, while a center click opened the menu. The shared toolbar icon label now explicitly gives the entire frame a rectangular hit area; the hover styling and rounded appearance are unchanged. This applies to Display, Sound, and Session controls.
+
+Validation: release build succeeds. On the connected host, the formerly missed upper corner and opposite lower corner each opened the menu on the first click; clicking the upper corner again closed it. No protocol or input-capture changes were needed.

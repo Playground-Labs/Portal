@@ -126,7 +126,7 @@ struct SessionView: View {
         PortalAction("Reconnect") { session.start() }
         PortalAction("Disconnect") { session.window?.close() }
     }
-    private func toolbarIcon(_ name:String) -> some View { Image(systemName:name).resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32).foregroundStyle(.secondary) }
+    private func toolbarIcon(_ name:String) -> some View { Image(systemName:name).resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32).contentShape(Rectangle()).foregroundStyle(.secondary) }
     private var toolbar: some View {
         HStack(spacing:6) {
             Spacer().frame(width:76)
