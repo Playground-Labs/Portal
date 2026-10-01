@@ -111,12 +111,31 @@ struct HomeView: View {
     private func computerRow(_ computer:Computer,saved:Bool) -> some View {
         HStack(spacing:14) {
             Image(systemName:"desktopcomputer").font(.system(size:21,weight:.light)).foregroundStyle(.secondary).frame(width:30)
-            VStack(alignment:.leading,spacing:5) { Text(computer.name).font(.portal(size:13,weight:.medium)); Text(computer.address).font(.portalMono(size:11)).lineLimit(1).help(computer.address).foregroundStyle(.secondary) }
+            VStack(alignment:.leading,spacing:5) { Text(computer.name).font(.portal(size:13,weight:.medium)).lineLimit(1).help(computer.name); Text(computer.address).font(.portalMono(size:11)).lineLimit(1).help(computer.address).foregroundStyle(.secondary) }
             Spacer()
             if computer.ssh.enabled { Image(systemName:"lock.shield").font(.system(size:12)).foregroundStyle(.secondary).help("Connects through SSH") }
             Button("Connect") { model.connect(computer) }.buttonStyle(SoftButton(primary:selected == computer.id))
-            Menu { if saved { Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width:32,height:32).modifier(ControlHover()).accessibilityLabel("Computer actions")
+            Menu { if saved { Button("Rename") { rename(computer) }; Button("Edit Computer") { editing = computer }; Button("Forget Password") { do { try Keychain.write(nil,account:computer.credentialAccount) } catch { model.alert = error.localizedDescription } }; Divider(); Button("Remove Computer",role:.destructive) { deleting = computer } } else { Button("Save Computer") { model.save(computer) } } } label: { Image(systemName:"ellipsis").font(.system(size:18)).frame(width:32,height:32) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width:32,height:32).modifier(ControlHover()).accessibilityLabel("Computer actions")
         }.padding(.horizontal,14).frame(height:66).contentShape(Rectangle()).background(selected == computer.id ? Color.portalAccent.opacity(0.06) : .clear).onTapGesture(count:2) { model.connect(computer) }.onTapGesture { selected = computer.id }
+    }
+    private func rename(_ computer: Computer) {
+        let alert = NSAlert()
+        alert.messageText = "Rename computer"
+        alert.informativeText = computer.address
+        let field = NSTextField(string:computer.name)
+        field.placeholderString = "Nickname"
+        field.setAccessibilityLabel("Nickname")
+        field.frame = NSRect(x:0,y:0,width:300,height:24)
+        alert.accessoryView = field
+        alert.addButton(withTitle:"Save"); alert.addButton(withTitle:"Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var renamed = computer
+        renamed.name = field.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+        guard !renamed.name.isEmpty, renamed.name.count <= 200 else {
+            model.alert = "Enter a nickname between 1 and 200 characters."; return
+        }
+        model.save(renamed)
     }
     private func quickConnect() {
         do { let endpoint = try Endpoint(address); let computer = model.computers.first(where:{ $0.address == endpoint.address }) ?? Computer(name:endpoint.host,address:endpoint.address); model.connect(computer) } catch { model.alert = error.localizedDescription }
@@ -136,7 +155,7 @@ struct ConnectionEditor: View {
                     VStack(alignment:.leading,spacing:22) {
                 Text(computer.name.isEmpty ? "New computer" : "Edit computer").font(.portal(size:20,weight:.semibold))
                 VStack(alignment:.leading,spacing:14) {
-                    field("Name",placeholder:"Studio Mac",text:$computer.name)
+                    field("Nickname",placeholder:"Studio Mac",text:$computer.name)
                     field("Address",placeholder:"computer.local or 192.168.1.10",text:$computer.address,monospaced:true)
                     Text("VNC must be enabled on the remote computer. Add :5901 for a custom port.").font(.portal(size:11)).foregroundStyle(.secondary)
                 }
@@ -162,7 +181,7 @@ struct ConnectionEditor: View {
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading)
                 }
                 Divider().opacity(0.5)
-                HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(SoftButton()).keyboardShortcut(.cancelAction); Button("Save") { do { computer.address = try Endpoint(computer.address).address; if computer.name.trimmingCharacters(in:.whitespaces).isEmpty { computer.name = try Endpoint(computer.address).host }; try computer.validate(); save(computer); dismiss() } catch { self.error = error.localizedDescription } }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }.padding(.horizontal,24).padding(.vertical,12)
+                HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(SoftButton()).keyboardShortcut(.cancelAction); Button("Save") { do { computer.address = try Endpoint(computer.address).address; computer.name = computer.name.trimmingCharacters(in:.whitespacesAndNewlines); if computer.name.isEmpty { computer.name = try Endpoint(computer.address).host }; try computer.validate(); save(computer); dismiss() } catch { self.error = error.localizedDescription } }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction) }.padding(.horizontal,24).padding(.vertical,12)
             }.frame(width:468,height:560)
         }
     }

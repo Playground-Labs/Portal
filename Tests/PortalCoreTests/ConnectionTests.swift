@@ -14,6 +14,16 @@ final class ConnectionTests: XCTestCase {
         computer.clipboard = .off
         try store.save(computer)
         XCTAssertEqual(try ComputerStore(url: url).computers, [computer])
+        let identity = computer.destinationIdentity
+        let credentialAccount = computer.credentialAccount
+        computer.name = "Office Mac"
+        try store.save(computer)
+        let renamed = try XCTUnwrap(ComputerStore(url: url).computers.first)
+        XCTAssertEqual(renamed.name, "Office Mac")
+        XCTAssertEqual(renamed.id, computer.id)
+        XCTAssertEqual(renamed.destinationIdentity, identity)
+        XCTAssertEqual(renamed.credentialAccount, credentialAccount)
+        XCTAssertEqual(store.computers.count, 1)
         let saved = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(saved.lowercased().contains("password"))
         try store.remove(computer.id)

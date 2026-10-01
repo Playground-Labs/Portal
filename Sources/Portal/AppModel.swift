@@ -12,7 +12,12 @@ final class AppModel: ObservableObject {
         catch { alert = "Saved computers could not be opened. The existing file has been preserved.\n\n\(error.localizedDescription)" }
     }
     func save(_ computer: Computer) {
-        do { guard let store else { throw PortalError(message:"Saved computers are unavailable until the saved file is repaired.") }; try store.save(computer); computers = store.computers }
+        do { guard let store else { throw PortalError(message:"Saved computers are unavailable until the saved file is repaired.") }; try store.save(computer); computers = store.computers
+            for controller in sessions.values where controller.session.computer.id == computer.id {
+                controller.session.computer.name = computer.name
+                controller.window?.title = computer.name
+            }
+        }
         catch { alert = error.localizedDescription }
     }
     func remove(_ computer: Computer) {
