@@ -195,9 +195,17 @@ struct SettingsView: View {
                 HStack {
                     Text("Appearance")
                     Spacer()
-                    Picker("Appearance",selection:$appearance) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }
-                        .labelsHidden().frame(width:120)
-                }.frame(minHeight:34)
+                    HStack(spacing:3) {
+                        ForEach(["system","light","dark"],id:\.self) { mode in
+                            Button { appearance = mode } label: {
+                                Text(mode.capitalized).frame(width:44)
+                            }.buttonStyle(SoftButton(primary:appearance == mode))
+                                .accessibilityLabel("\(mode.capitalized) appearance")
+                                .accessibilityAddTraits(appearance == mode ? .isSelected : [])
+                        }
+                    }.padding(3).background(Color.primary.opacity(0.04),in:RoundedRectangle(cornerRadius:8))
+                        .accessibilityElement(children:.contain).accessibilityLabel("Appearance")
+                }.frame(minHeight:46)
                 Divider()
                 Toggle(isOn:$discovery) { HStack { Text("Discover nearby computers"); Spacer() } }.frame(minHeight:34)
                 Divider()
