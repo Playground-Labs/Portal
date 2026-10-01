@@ -18,7 +18,7 @@ final class Session: ObservableObject {
     @Published var canResize = false
     @Published var captured = false
     @Published var retrying = false
-    var save: ((Computer) -> Void)?
+    var save: ((Computer, Bool) -> Void)?
     weak var window: NSWindow?
     let queue = DispatchQueue(label: "app.portal.session", qos: .userInteractive)
     private var client: OpaquePointer?
@@ -104,8 +104,8 @@ final class Session: ObservableObject {
                 let secure = portal_vnc_encrypted(vnc) != 0
                 DispatchQueue.main.async { [self] in
                     guard isCurrent(token) else { return }
-                    connected = true; status = "Connected"; encrypted = secure; retryCount = 0; computer.lastUsed = Date(); save?(computer)
-                    if rememberCredential, let credential { do { try Keychain.write(credential, account: computer.credentialAccount) } catch { showError(error) } }
+                    connected = true; status = "Connected"; encrypted = secure; retryCount = 0; computer.lastUsed = Date(); save?(computer, false)
+                    if rememberCredential, let credential { do { try Keychain.write(credential, account: computer.credentialAccount); save?(computer, true) } catch { showError(error) } }
                     audio.volume = computer.volume
                     timer?.invalidate(); timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in self?.sendClipboardIfChanged() }
                 }
@@ -163,8 +163,8 @@ final class Session: ObservableObject {
         pendingSize = target; resizeWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.send { _ = portal_vnc_resize($0,Int32(width),Int32(height)) } }; resizeWork = work; DispatchQueue.main.asyncAfter(deadline: .now()+0.4, execute: work)
     }
-    func updatePreferences() { save?(computer); audio.volume = computer.volume; send { [quality = computer.quality.value] in _ = portal_vnc_quality($0,quality) } }
-    func setAudio(_ enabled: Bool) { computer.audioEnabled = enabled; if !enabled { audio.stop() }; send { _ = portal_vnc_audio($0,enabled ? 1 : 0) }; save?(computer) }
+    func updatePreferences() { save?(computer, false); audio.volume = computer.volume; send { [quality = computer.quality.value] in _ = portal_vnc_quality($0,quality) } }
+    func setAudio(_ enabled: Bool) { computer.audioEnabled = enabled; if !enabled { audio.stop() }; send { _ = portal_vnc_audio($0,enabled ? 1 : 0) }; save?(computer, false) }
     private func sendClipboardIfChanged() {
         guard connected, captured, !computer.viewOnly, computer.clipboard == .bidirectional else { return }
         let board = NSPasteboard.general
@@ -177,14 +177,17 @@ final class Session: ObservableObject {
     }
     private func requestCredential(needsUser: Bool) -> (String,String)? {
         guard isCurrent(workerGeneration) else { return nil }
-        if !promptedCredential { promptedCredential = true; if !skipStoredCredential, let stored = Keychain.read(computer.credentialAccount) { credential = stored; return (computer.username,stored) } }
+        if !promptedCredential { promptedCredential = true; if !skipStoredCredential, (!needsUser || !computer.username.isEmpty), let stored = Keychain.read(computer.credentialAccount) { credential = stored; return (computer.username,stored) } }
+        rememberCredential = false
         let alert = NSAlert(); alert.messageText = "Connect to \(computer.name)"; alert.informativeText = "Enter the credentials required by the remote computer."
         alert.addButton(withTitle: "Connect"); alert.addButton(withTitle: "Cancel")
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
-        let user = NSTextField(string: computer.username); user.placeholderString = "Username"; user.widthAnchor.constraint(equalToConstant: 320).isActive = true
-        let pass = NSSecureTextField(); pass.placeholderString = "Password"; pass.widthAnchor.constraint(equalToConstant: 320).isActive = true
-        let remember = NSButton(checkboxWithTitle: "Remember in Keychain", target: nil, action: nil)
-        if needsUser { stack.addArrangedSubview(user) }; stack.addArrangedSubview(pass); stack.addArrangedSubview(remember); alert.accessoryView = stack
+        let user = NSTextField(string: computer.username); user.placeholderString = "Username"; user.setAccessibilityLabel("Username"); user.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        let pass = NSSecureTextField(); pass.placeholderString = "Password"; pass.setAccessibilityLabel("Password"); pass.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        let remember = NSButton(checkboxWithTitle: "Save credentials in Keychain", target: nil, action: nil)
+        if needsUser { stack.addArrangedSubview(user) }; stack.addArrangedSubview(pass); stack.addArrangedSubview(remember)
+        stack.setFrameSize(stack.fittingSize)
+        alert.accessoryView = stack
         alert.window.initialFirstResponder = needsUser && computer.username.isEmpty ? user : pass
         guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return nil }
         computer.username = user.stringValue; credential = pass.stringValue; rememberCredential = remember.state == .on
@@ -201,7 +204,7 @@ final class Session: ObservableObject {
         alert.informativeText = kind == 1 ? "Your screen, clipboard, and input may be visible to others on this network. Use an SSH tunnel or a trusted VPN when needed. Portal cannot detect your VPN." : "Confirm this SHA-256 fingerprint with the computer’s owner before trusting it. A changed fingerprint may indicate a different computer.\n\n\(detail)"
         alert.addButton(withTitle: kind == 1 ? "Connect Anyway" : "Trust and Connect"); alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return false }
-        if kind == 1 { computer.acceptedInsecureAddress = computer.address; save?(computer) }
+        if kind == 1 { computer.acceptedInsecureAddress = computer.address; save?(computer, false) }
         else { UserDefaults.standard.set(detail,forKey: trustKey) }
         return true
     }

@@ -28,7 +28,7 @@ final class AppModel: ObservableObject {
         do { try computer.validate() } catch { alert = error.localizedDescription; return }
         if let existing = sessions.values.first(where: { $0.session.computer.id == computer.id || ($0.session.computer.destinationIdentity == computer.destinationIdentity && (computer.username.isEmpty || $0.session.computer.username == computer.username)) }) { existing.window?.makeKeyAndOrderFront(nil); return }
         let session = Session(computer)
-        session.save = { [weak self] updated in guard let self, self.computers.contains(where: { $0.id == updated.id }) else { return }; self.save(updated) }
+        session.save = { [weak self] updated, saveIfNew in guard let self, saveIfNew || self.computers.contains(where: { $0.id == updated.id }) else { return }; self.save(updated) }
         let controller = SessionWindow(session:session)
         controller.onClose = { [weak self] in self?.sessions.removeValue(forKey:computer.id) }
         sessions[computer.id] = controller; controller.showWindow(nil); session.start()
