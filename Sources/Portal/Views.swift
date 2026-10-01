@@ -6,6 +6,44 @@ extension Color {
     static let portalAccent = Color(red:0.65,green:0.36,blue:0.07)
     static let portalBackground = Color(nsColor:.windowBackgroundColor)
 }
+struct ConnectionFieldSurface: ViewModifier {
+    var trailing: CGFloat = 12
+    func body(content: Content) -> some View {
+        content.padding(.leading,12).padding(.trailing,trailing).frame(height:44)
+            .background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7))
+            .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
+    }
+}
+
+final class CredentialInput: ObservableObject {
+    @Published var username: String
+    @Published var password = ""
+    @Published var remember = false
+    init(username: String) { self.username = username }
+}
+
+struct CredentialFields: View {
+    @ObservedObject var input: CredentialInput
+    let needsUser: Bool
+    @FocusState private var focus: Field?
+    private enum Field { case username, password }
+    var body: some View {
+        VStack(alignment:.leading,spacing:10) {
+            if needsUser {
+                TextField("Username",text:$input.username)
+                    .textFieldStyle(.plain).focused($focus,equals:.username)
+                    .accessibilityLabel("Username").modifier(ConnectionFieldSurface())
+            }
+            SecureField("Password",text:$input.password)
+                .textFieldStyle(.plain).focused($focus,equals:.password)
+                .accessibilityLabel("Password").modifier(ConnectionFieldSurface())
+            Toggle("Save credentials in Keychain",isOn:$input.remember)
+                .toggleStyle(.checkbox).font(.portal(size:12)).padding(.top,2)
+        }.font(.portal(size:13)).frame(width:320).fixedSize(horizontal:false,vertical:true)
+            .onAppear { focus = needsUser && input.username.isEmpty ? .username : .password }
+    }
+}
+
 struct ControlHover: ViewModifier {
     var pressed = false
     @State private var hovering = false
@@ -65,7 +103,7 @@ struct HomeView: View {
                         HStack(spacing:12) {
                             TextField("Enter an address to connect",text:$address).font(.portalMono(size:12)).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
                             Button("Connect",action:quickConnect).buttonStyle(SoftButton(primary:true)).disabled(address.trimmingCharacters(in:.whitespaces).isEmpty)
-                        }.padding(.leading,12).padding(.trailing,7).frame(height:44).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7)).overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
+                        }.modifier(ConnectionFieldSurface(trailing:7))
                         VStack(alignment:.leading,spacing:12) {
                             sectionLabel("SAVED COMPUTERS",count:model.computers.count)
                             if model.computers.isEmpty {

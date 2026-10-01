@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Combine
 import PortalCore
 import PortalVNC
@@ -181,17 +182,13 @@ final class Session: ObservableObject {
         rememberCredential = false
         let alert = NSAlert(); alert.messageText = "Connect to \(computer.name)"; alert.informativeText = "Enter the credentials required by the remote computer."
         alert.addButton(withTitle: "Connect"); alert.addButton(withTitle: "Cancel")
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
-        let user = NSTextField(string: computer.username); user.placeholderString = "Username"; user.setAccessibilityLabel("Username"); user.widthAnchor.constraint(equalToConstant: 320).isActive = true
-        let pass = NSSecureTextField(); pass.placeholderString = "Password"; pass.setAccessibilityLabel("Password"); pass.widthAnchor.constraint(equalToConstant: 320).isActive = true
-        let remember = NSButton(checkboxWithTitle: "Save credentials in Keychain", target: nil, action: nil)
-        if needsUser { stack.addArrangedSubview(user) }; stack.addArrangedSubview(pass); stack.addArrangedSubview(remember)
-        stack.setFrameSize(stack.fittingSize)
-        alert.accessoryView = stack
-        alert.window.initialFirstResponder = needsUser && computer.username.isEmpty ? user : pass
+        let input = CredentialInput(username:computer.username)
+        let fields = NSHostingView(rootView:PortalAppearance { CredentialFields(input:input,needsUser:needsUser) })
+        fields.setFrameSize(fields.fittingSize)
+        alert.accessoryView = fields
         guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return nil }
-        computer.username = user.stringValue; credential = pass.stringValue; rememberCredential = remember.state == .on
-        return (computer.username,pass.stringValue)
+        computer.username = input.username; credential = input.password; rememberCredential = input.remember
+        return (computer.username,input.password)
     }
     private func authorize(kind: Int32, detail: String) -> Bool {
         guard isCurrent(workerGeneration) else { return false }
