@@ -44,6 +44,29 @@ for name, raw, declaration, arguments, hook in [
 rfbBool
 {raw}({declaration})
 {{''')
+# An exact read must wait for NEW socket bytes, not its own incomplete buffer.
+# WaitForMessage remains buffer-aware for callers polling for a new RFB message.
+anchor = 'int WaitForMessage(rfbClient* client,unsigned int usecs)\n{'
+assert s.count(anchor) == 1
+s = s.replace(anchor, """int WaitForMessage(rfbClient* client,unsigned int usecs)
+{
+  if (client->buffered > 0) return 1;
+  return PortalWaitForSocket(client, usecs);
+}
+
+static int PortalWaitForSocket(rfbClient* client,unsigned int usecs)
+{""")
+anchor = """  /* Check if we have buffered data available */
+  if (client->buffered > 0) {
+    return 1;
+  }
+"""
+assert s.count(anchor) == 1
+s = s.replace(anchor, '')
+anchor = 'WaitForMessage(client, USECS_WAIT_PER_RETRY);'
+assert s.count(anchor) == 2
+s = s.replace(anchor, 'PortalWaitForSocket(client, USECS_WAIT_PER_RETRY);')
+s = s.replace('rfbBool\nReadFromRFBServer(', 'static int PortalWaitForSocket(rfbClient *, unsigned int);\n\nrfbBool\nReadFromRFBServer(', 1)
 sockets.write_text(s)
 
 # Prefer full-session encryption before credential-only or unencrypted methods.

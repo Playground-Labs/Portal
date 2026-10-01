@@ -27,6 +27,7 @@ final class VNCTests: XCTestCase {
     func testUnsupportedAuthenticationExplainsConnectionFailure() throws { try exchange(mode: "unsupported") }
     func testRSAAESEncryptedSession() throws { try rsaExchange("rsa-129") }
     func testPrefersEncryptedAuthenticationOverServerOrder() throws { try rsaExchange("rsa-129-preference") }
+    func testRSAAESFrameSplitAcrossNetworkPackets() throws { try rsaExchange("rsa-129-fragment") }
     func testRSAAES128Session() throws { try rsaExchange("rsa-5") }
     func testRSAAESAuthenticationOnly() throws { try rsaExchange("rsa-6"); try rsaExchange("rsa-130") }
     func testRSAAESRejectsTamperedRecordBeforeCredentials() throws { try rsaExchange("rsa-129-tamper") }
@@ -71,7 +72,9 @@ final class VNCTests: XCTestCase {
         XCTAssertEqual(capture.credentialPrompts,1)
         XCTAssertEqual(portal_vnc_encrypted(client), mode == "rsa-6" || mode == "rsa-130" ? 0 : 1)
         let deadline = Date().addingTimeInterval(4)
-        while capture.pixels.isEmpty, Date() < deadline { XCTAssertGreaterThanOrEqual(portal_vnc_poll(client),0) }
+        while capture.pixels.isEmpty, Date() < deadline {
+            guard portal_vnc_poll(client) >= 0 else { XCTFail(String(cString:portal_vnc_error(client))); return }
+        }
         XCTAssertEqual(capture.pixels, Data([255,0,0,0,0,255,0,0]))
         XCTAssertEqual(portal_vnc_key(client,0x61,1),1)
         portal_vnc_destroy(client); destroyed = true; server.waitUntilExit()

@@ -1,5 +1,5 @@
 """Independent RSA-AES RFB peer using PyCryptodome, including authenticated records."""
-import socket, struct, sys, hashlib, json
+import socket, struct, sys, hashlib, json, time
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_v1_5
 from Crypto.Random import get_random_bytes
@@ -12,6 +12,7 @@ listener = socket.socket()
 listener.bind(('127.0.0.1', 0)); listener.listen(1)
 print(listener.getsockname()[1], flush=True)
 peer, _ = listener.accept(); peer.settimeout(12)
+peer.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 observed = {}
 def raw_take(n):
     data = b''
@@ -43,6 +44,7 @@ try:
     write_key = digest(client_random + server_random).digest()[:key_size]
     read_key = digest(server_random + client_random).digest()[:key_size]
     rx = tx = 0
+    fragment_frames = False
     buffered = b''
     def take(n):
         global rx, buffered
@@ -58,7 +60,15 @@ try:
         cipher = AES.new(write_key, AES.MODE_EAX, nonce=tx.to_bytes(16, 'little')); cipher.update(header)
         encrypted, tag = cipher.encrypt_and_digest(data); tx += 1
         if 'tamper' in mode: tag = bytes([tag[0]^1]) + tag[1:]
-        peer.sendall(header + encrypted + tag)
+        packet = header + encrypted + tag
+        if fragment_frames:
+            peer.sendall(packet[:2])
+            time.sleep(0.05)
+            peer.sendall(packet[2:6])
+            time.sleep(0.05)
+            peer.sendall(packet[6:])
+        else:
+            peer.sendall(packet)
     assert take(digest().digest_size) == digest(client_blob + server_blob).digest()
     send(digest(server_blob + client_blob).digest() + b'\x01')
     user = take(take(1)[0]); password = take(take(1)[0])
@@ -69,12 +79,16 @@ try:
     assert take(1) == b'\x01'
     fmt = struct.pack('!BBBBHHHBBBxxx',32,24,0,1,255,255,255,0,8,16)
     send(struct.pack('!HH',2,1)+fmt+struct.pack('!I',7)+b'Fixture')
+    sent_frame = False
     while True:
         kind = take(1)[0]
         if kind == 0: take(19)
         elif kind == 2: take(struct.unpack('!xH',take(3))[0]*4)
         elif kind == 3:
             take(9)
+            if sent_frame: continue
+            sent_frame = True
+            fragment_frames = 'fragment' in mode
             pixels = bytes([255,0,0,0,0,255,0,0])
             send(struct.pack('!BBHHHHHi',0,0,1,0,0,2,1,0)+pixels)
         elif kind == 4:

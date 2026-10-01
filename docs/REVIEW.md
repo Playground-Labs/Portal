@@ -47,3 +47,11 @@ Replaced remaining in-app native dropdowns, switches, disclosure controls, alert
 Standards review found missing dropdown accessibility values; spec review also found missing switch hover feedback and initial SSH password focus. All three were corrected in the shared controls. Authentication decisions, fingerprint validation, Keychain writes, and cancellation checks retain their existing behavior.
 
 Validation: release app built successfully; existing 22 tests passed. Inspected editor and settings in dark mode, settings in light mode, dropdown selection and collapse, session controls and fullscreen enter/exit, and real-host credential presentation without entering credentials. Username receives initial focus; Tab moves to password; closing the dialog cancels the connection. SSH reuses this same focused credential component; an end-to-end SSH login was not exercised.
+
+## WayVNC disconnect after authentication — October 1, 2026
+
+Reproduced the saved real-host connection: RSA-AES authentication completed and the server advertised a 3440 × 1440 desktop, but the encrypted read then reported a timeout. A fragmented-record regression test reproduced the same unexpected-close error in 0.54 seconds. The cause was LibVNCClient's exact-read loop calling a buffer-aware wait while its buffer held only part of the requested data; that wait returned immediately and exhausted the retry counter.
+
+Exact reads now wait for socket readiness, while normal message polling retains its buffered-data shortcut. The native dependency revision forces the fix into packaged builds. The regression test passes and verifies pixels plus subsequent input. Standards and spec reviews found no issues. The rebuilt app successfully rendered the real WayVNC desktop using its existing saved credentials; no credential values were inspected or logged. Temporary protocol-length diagnostics were removed.
+
+Validation: all 23 tests pass; release build succeeds. The real-host session remained connected after the full test run.
