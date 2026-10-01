@@ -20,7 +20,7 @@ struct PortalVNC {
     char *saslUser, *saslPassword;
     uint8_t fingerprint[32];
     int hasFingerprint;
-    int automaticQuality, frameCount;
+    int automaticQuality, frameCount, frameDirty;
     uint64_t updates;
     double updateSeconds;
 };
@@ -53,7 +53,7 @@ static rfbBool allocate(rfbClient *c) {
     if (!valid_size(c->width,c->height)) return fail(p,"The remote desktop is too large or has invalid dimensions.");
     uint8_t *buffer = calloc((size_t)c->width*c->height,4);
     if (!buffer) return fail(p,"Not enough memory for the remote desktop.");
-    free(c->frameBuffer); c->frameBuffer = buffer;
+    free(c->frameBuffer); c->frameBuffer = buffer; p->frameDirty=1;
     return TRUE;
 }
 static int authorize(PortalVNC *p) {
@@ -100,7 +100,16 @@ static void cursor(rfbClient *c, int x, int y, int width, int height, int bytesP
     for(int i=0;i<width*height;i++) c->rcSource[i*4+3]=c->rcMask[i]?255:0;
     p->cb.cursor(p->cb.context,c->rcSource,width,height,x,y);
 }
-static void frame(rfbClient *c) { PortalVNC *p=owner(c); p->updates++; if(p->cb.frame) p->cb.frame(p->cb.context,c->frameBuffer,c->width,c->height); }
+static void damage(rfbClient *c, int x, int y, int width, int height) {
+    (void)x; (void)y;
+    if(width>0 && height>0) owner(c)->frameDirty=1;
+}
+static void frame(rfbClient *c) {
+    PortalVNC *p=owner(c);
+    if(!p->frameDirty) return;
+    p->frameDirty=0; p->updates++;
+    if(p->cb.frame) p->cb.frame(p->cb.context,c->frameBuffer,c->width,c->height);
+}
 static void clipboard(rfbClient *c,const char *text,int length) { PortalVNC *p=owner(c); if(length>=0 && length<=1048576 && p->cb.clipboard) p->cb.clipboard(p->cb.context,text,length,0); }
 static void clipboard_utf8(rfbClient *c,const char *text,int length) { PortalVNC *p=owner(c); if(length>=0 && length<=1048576 && p->cb.clipboard) p->cb.clipboard(p->cb.context,text,length,1); }
 static rfbBool encoding(rfbClient *c,rfbFramebufferUpdateRectHeader *rect) {
@@ -160,7 +169,7 @@ PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     p->cb=cb; p->client=rfbGetClient(8,3,4);
     if(!p->client) { free(p); return NULL; }
     rfbClient *c=p->client; rfbClientSetClientData(c,&tag,p);
-    c->MallocFrameBuffer=allocate; c->FinishedFrameBufferUpdate=frame;
+    c->MallocFrameBuffer=allocate; c->GotFrameBufferUpdate=damage; c->FinishedFrameBufferUpdate=frame;
     c->GotXCutText=clipboard; c->GotXCutTextUTF8=clipboard_utf8;
     c->GetPassword=password; c->GetUser=sasl_user; c->GetCredential=credential; c->GetX509CertFingerprintMismatchDecision=certificate;
     c->canHandleNewFBSize=TRUE; c->connectTimeout=8; c->readTimeout=8;

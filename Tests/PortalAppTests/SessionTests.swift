@@ -29,6 +29,20 @@ import PortalVNC
         session.key(0xff1b,down:true)
         try await until { session.remoteCursor == nil }
     }
+    func testCursorOnlyUpdateDoesNotReplaceDesktopImage() async throws {
+        let (server,address) = try peer("cursor")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.remoteCursor != nil && session.image != nil }
+        let image = try XCTUnwrap(session.image)
+        session.key(0xff1b,down:true)
+        try await until { session.remoteCursor == nil }
+        await withCheckedContinuation { continuation in
+            session.send { _ in DispatchQueue.main.async { continuation.resume() } }
+        }
+        XCTAssertTrue(session.image === image,"A cursor-only update must not copy and present the entire desktop")
+    }
     func testIdlePollingDoesNotBlockInputQueue() throws {
         let (server,address) = try peer("idle")
         defer { if server.isRunning { server.terminate() } }
