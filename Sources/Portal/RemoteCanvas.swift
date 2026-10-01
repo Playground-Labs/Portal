@@ -23,6 +23,8 @@ final class DesktopScrollView: NSScrollView {
         let next = actual ? NSSize(width: max(contentSize.width,size.width),height: max(contentSize.height,size.height)) : contentSize
         if canvas.frame.size != next { canvas.setFrameSize(next) }
         if canvas.session.computer.viewOnly { canvas.releaseInput() }
+        if !canvas.session.connected { canvas.releaseInput() }
+        canvas.window?.invalidateCursorRects(for:canvas)
         canvas.needsDisplay = true
         canvas.session.resize(to: contentSize)
     }
@@ -39,6 +41,13 @@ final class DesktopCanvas: NSView {
     // Device masks from IOKit/hidsystem/IOLLEvent.h distinguish left and right keys.
     private let modifierKeys: [(UInt16,UInt,UInt32)] = [(56,0x2,0xffe1),(60,0x4,0xffe2),(59,0x1,0xffe3),(62,0x2000,0xffe4),(58,0x20,0xffe9),(61,0x40,0xffea),(55,0x8,0xffeb),(54,0x10,0xffec)]
     private var tracking: NSTrackingArea?
+    private static let remoteCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        if session.connected, session.captured, !session.computer.viewOnly, window?.isKeyWindow == true {
+            addCursorRect(destinationRect.intersection(visibleRect),cursor:Self.remoteCursor)
+        }
+    }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     init(session: Session) {
@@ -79,9 +88,11 @@ final class DesktopCanvas: NSView {
         tracking = NSTrackingArea(rect: .zero,options:[.mouseMoved,.activeInKeyWindow,.inVisibleRect],owner:self,userInfo:nil); addTrackingArea(tracking!)
     }
     func releaseInput() {
+        guard session.captured || !held.isEmpty || buttons != 0 else { return }
         for key in held.values { session.send { _ = portal_vnc_key($0,key,0) } }; held.removeAll()
         if buttons != 0 { let (x,y) = lastPoint; session.send { _ = portal_vnc_pointer($0,Int32(x),Int32(y),0) }; buttons = 0 }
         session.captured = false
+        window?.invalidateCursorRects(for:self)
     }
     private func point(_ event: NSEvent) -> (Int,Int)? {
         let point = convert(event.locationInWindow,from:nil), destination = destinationRect, source = sourceRect
@@ -118,7 +129,7 @@ final class DesktopCanvas: NSView {
     private func capture(_ event: NSEvent) {
         window?.makeFirstResponder(self)
         guard !session.captured else { return }
-        session.captured = true; capsLock = event.modifierFlags.contains(.capsLock)
+        session.captured = true; window?.invalidateCursorRects(for:self); capsLock = event.modifierFlags.contains(.capsLock)
         modifiers(event)
     }
     private func modifiers(_ event: NSEvent) {

@@ -55,3 +55,11 @@ Reproduced the saved real-host connection: RSA-AES authentication completed and 
 Exact reads now wait for socket readiness, while normal message polling retains its buffered-data shortcut. The native dependency revision forces the fix into packaged builds. The regression test passes and verifies pixels plus subsequent input. Standards and spec reviews found no issues. The rebuilt app successfully rendered the real WayVNC desktop using its existing saved credentials; no credential values were inspected or logged. Temporary protocol-length diagnostics were removed.
 
 Validation: all 23 tests pass; release build succeeds. The real-host session remained connected after the full test run.
+
+## Connected session controls and cursor — October 1, 2026
+
+Session controls now open inside the window rather than in a separate popover that could leave the visible session area. Opening controls releases remote keyboard capture; switching panels preserves focus and Escape dismissal. Panels scroll when their contents exceed available window height.
+
+The local cursor uses a transparent cursor rect only over the captured, connected remote image. Portal controls, letterboxing, released input, view-only mode, and disconnected sessions retain the local cursor. This keeps the server-rendered cursor visible without a duplicate local pointer. Capture release is idempotent.
+
+Validation: release build passes; all three SessionTests pass, including a regression check for capture release on disconnect/view-only. On the real connected WayVNC desktop, verified remote capture, visible three-dot controls afterward, switching to Sound, and Escape dismissal. Standards/spec review findings resolved and the application remains connected.

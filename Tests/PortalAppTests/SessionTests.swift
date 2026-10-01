@@ -3,6 +3,18 @@ import PortalCore
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testCanvasReleasesControlWhenDisconnectedOrViewOnly() {
+        let session = Session(Computer(name:"Test",address:"127.0.0.1"))
+        let scroll = DesktopScrollView()
+        let canvas = DesktopCanvas(session:session)
+        scroll.documentView = canvas; scroll.canvas = canvas
+        session.connected = true; session.captured = true; session.computer.viewOnly = true
+        scroll.refresh()
+        XCTAssertFalse(session.captured)
+        session.computer.viewOnly = false; session.captured = true; session.connected = false
+        scroll.refresh()
+        XCTAssertFalse(session.captured)
+    }
     func testBurstKeepsFinalFrameAndSessionCanBeReleased() async throws {
         let (server,address) = try peer("burst")
         defer { if server.isRunning { server.terminate() } }
