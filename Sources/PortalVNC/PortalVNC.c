@@ -20,7 +20,6 @@ struct PortalVNC {
     uint64_t updates;
     double updateSeconds;
 };
-static void quiet_log(const char *format, ...) {}
 static char tag;
 static _Thread_local PortalVNC *active;
 static void clear_log_scope(PortalVNC **scope) { active=NULL; }
@@ -30,6 +29,16 @@ static void log_message(const char *format, ...) {
     if (!active) return;
     va_list args; va_start(args, format);
     vsnprintf(active->error, sizeof(active->error), format, args); va_end(args);
+}
+static void diagnostic_log(const char *format, ...) {
+    const char *prefix = "Unknown authentication scheme from VNC server: ";
+    if (!active || strncmp(format, prefix, strlen(prefix)) != 0) return;
+    char diagnostic[512];
+    va_list args; va_start(args, format);
+    vsnprintf(diagnostic, sizeof(diagnostic), format, args); va_end(args);
+        snprintf(active->error, sizeof(active->error),
+                 "This server requires authentication Portal does not support (types %.*s). Use a server authentication method compatible with Portal.",
+                 (int)strcspn(diagnostic + strlen(prefix), "\r\n"), diagnostic + strlen(prefix));
 }
 static int fail(PortalVNC *p, const char *message) {
     p->fatal = 1; snprintf(p->error, sizeof(p->error), "%s", message); return 0;
@@ -118,7 +127,7 @@ static rfbBool message(rfbClient *c,rfbServerToClientMsg *msg) {
 static int encodings[]={-259,rfbEncodingExtDesktopSize,0};
 static rfbClientProtocolExtension extension={.encodings=encodings,.handleEncoding=encoding,.handleMessage=message};
 static pthread_once_t registration=PTHREAD_ONCE_INIT;
-static void register_extension(void) { rfbClientRegisterExtension(&extension); rfbClientLog=quiet_log; rfbClientErr=log_message; }
+static void register_extension(void) { rfbClientRegisterExtension(&extension); rfbClientLog=diagnostic_log; rfbClientErr=log_message; }
 PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     pthread_once(&registration,register_extension);
     PortalVNC *p=calloc(1,sizeof(*p)); if(!p) return NULL;

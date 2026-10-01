@@ -14,6 +14,7 @@ final class VNCTests: XCTestCase {
     func testRealRFBConnectionExchangesPixelsInputClipboardLayoutAndAudio() throws { try exchange(mode: "multi") }
     func testPasswordAuthenticationAndSingleDisplayResize() throws { try exchange(mode: "auth") }
     func testDecliningUnencryptedConnectionSendsNoDesktopRequests() throws { try exchange(mode: "deny") }
+    func testUnsupportedAuthenticationExplainsConnectionFailure() throws { try exchange(mode: "unsupported") }
     private func exchange(mode: String) throws {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: output) }
@@ -50,6 +51,13 @@ final class VNCTests: XCTestCase {
         var destroyed = false
         defer { if !destroyed { portal_vnc_destroy(client) } }
         let connected = portal_vnc_connect(client,"127.0.0.1",port,0,0,"")
+        if mode == "unsupported" {
+            XCTAssertEqual(connected, 0)
+            let error = String(cString: portal_vnc_error(client))
+            XCTAssertTrue(error.contains("authentication"), error)
+            XCTAssertTrue(error.contains("129, 5"), error)
+            return
+        }
         if mode == "deny" {
             XCTAssertEqual(connected,0)
             XCTAssertTrue(String(cString:portal_vnc_error(client)).contains("cancelled"))

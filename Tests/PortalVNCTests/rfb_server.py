@@ -19,6 +19,12 @@ def rect(x, y, w, h, encoding, body=b''):
     return struct.pack('!HHHHi', x,y,w,h,encoding) + body
 peer.sendall(b'RFB 003.008\n')
 assert take(12) == b'RFB 003.008\n'
+if mode == 'unsupported':
+    peer.sendall(bytes([2, 129, 5]))
+    assert peer.recv(1) == b''
+    with open(sys.argv[1], 'w') as f: json.dump({}, f)
+    peer.close(); listener.close()
+    sys.exit(0)
 if mode == 'auth':
     peer.sendall(b'\x01\x02')
     assert take(1) == b'\x02'
