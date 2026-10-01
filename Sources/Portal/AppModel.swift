@@ -30,7 +30,7 @@ final class AppModel: ObservableObject {
     }
     func resetTrust() {
         for var computer in computers { computer.acceptedInsecureAddress = nil; save(computer) }
-        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("certificate:") { UserDefaults.standard.removeObject(forKey:key) }
+        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("certificate:") || key.hasPrefix("rsa-key:") { UserDefaults.standard.removeObject(forKey:key) }
     }
     func stopAll() { sessions.values.forEach { $0.session.stop() } }
 }

@@ -193,13 +193,16 @@ final class Session: ObservableObject {
     private func authorize(kind: Int32, detail: String) -> Bool {
         guard isCurrent(workerGeneration) else { return false }
         if kind == 1, computer.acceptedInsecureAddress == computer.address { return true }
+        let trustKey = "\(kind == 3 ? "rsa-key" : "certificate"):\(computer.destinationIdentity)"
+        let previousKey = UserDefaults.standard.string(forKey: trustKey)
+        if kind == 3, previousKey == detail { return true }
         let alert = NSAlert(); alert.alertStyle = .warning
-        alert.messageText = kind == 1 ? "This connection isn’t encrypted" : "Verify this computer’s certificate"
+        alert.messageText = kind == 1 ? "This connection isn’t encrypted" : (kind == 3 && previousKey != nil ? "This computer’s identity has changed" : "Verify this computer’s identity")
         alert.informativeText = kind == 1 ? "Your screen, clipboard, and input may be visible to others on this network. Use an SSH tunnel or a trusted VPN when needed. Portal cannot detect your VPN." : "Confirm this SHA-256 fingerprint with the computer’s owner before trusting it. A changed fingerprint may indicate a different computer.\n\n\(detail)"
         alert.addButton(withTitle: kind == 1 ? "Connect Anyway" : "Trust and Connect"); alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn, isCurrent(workerGeneration) else { return false }
         if kind == 1 { computer.acceptedInsecureAddress = computer.address; save?(computer) }
-        else { UserDefaults.standard.set(detail,forKey: "certificate:\(computer.destinationIdentity)") }
+        else { UserDefaults.standard.set(detail,forKey: trustKey) }
         return true
     }
 }

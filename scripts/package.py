@@ -53,6 +53,15 @@ def bundle(binary, original):
             subprocess.run(['install_name_tool','-id','@rpath/'+target.name,str(target)],check=True)
         subprocess.run(['install_name_tool','-change',dependency,'@rpath/'+target.name,str(binary)],check=True)
 bundle(executable,source)
+# DES VNC authentication uses OpenSSL's legacy provider loaded at runtime.
+for library in tuple(seen):
+    if library.name.startswith('libcrypto.'):
+        provider = library.parent/'ossl-modules/legacy.dylib'
+        if not provider.exists(): raise RuntimeError('Missing OpenSSL legacy provider for VNC authentication')
+        target = contents/'Frameworks/legacy.dylib'
+        shutil.copy2(provider,target)
+        subprocess.run(['chmod','u+w',str(target)],check=True)
+        bundle(target,provider)
 versions = [(14,0)]
 for binary in [executable, *(contents/'Frameworks').iterdir()]:
     load_commands = subprocess.check_output(['otool','-l',str(binary)],text=True)

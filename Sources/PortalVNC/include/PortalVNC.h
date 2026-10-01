@@ -11,7 +11,7 @@ typedef struct {
     void (*layout)(void *, const PortalScreen *, int, int);
     void (*audio)(void *, const uint8_t *, int); /* NULL/0 announces availability; PCM is S16 LE, stereo, 44100 Hz. */
     int (*credentials)(void *, int, char **, char **); /* Return malloc-owned username/password; kind 1=password, 2=user. */
-    int (*authorize)(void *, int, const char *); /* 1=unencrypted; 2=certificate fingerprint. */
+    int (*authorize)(void *, int, const char *); /* 1=unencrypted; 2=certificate fingerprint; 3=RSA key SHA-256 fingerprint. */
 } PortalCallbacks;
 
 PortalVNC *portal_vnc_create(PortalCallbacks callbacks);

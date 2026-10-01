@@ -223,7 +223,7 @@ struct SettingsView: View {
                 Text("Privacy & security").font(.portal(size:13,weight:.semibold))
                 Text("Passwords stay in macOS Keychain. No analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                 Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton())
-                Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.portal(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                Text("Shows encryption and server identity prompts again. Previously trusted SSH servers stay trusted.").font(.portal(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
         }.padding(.horizontal,24).padding(.bottom,16)
     }

@@ -23,3 +23,19 @@ Follow-up checks found that cancellation could leave a disconnected spinner. Can
 No deployment or public distribution was performed. Real macOS, Linux, Windows, SSH, and TLS server interoperability remains an explicit verification limit. Automated tests use actual local TCP protocol peers, not production servers.
 
 Standards: 4 findings resolved, highest priority final-frame loss. Spec: 6 distinct findings resolved including follow-up cancellation and logging, highest priority final-frame loss/reconnect recovery.
+
+## Authentication compatibility update
+
+Reviewed against `a386f01` on October 1, 2026, with independent standards/security and specification reviews.
+
+### Standards
+
+One finding resolved: direct SASL connections incorrectly prompted as unencrypted before SASL negotiated its protection. The callback no longer makes this premature decision. SASL still requires an encrypted security layer unless TLS or an established SSH tunnel already protects it. Tests reject unprotected PLAIN and accept PLAIN over TLS and the tunnel boundary. Follow-up review found no remaining actionable security issue.
+
+### Spec
+
+One finding resolved: RSA input tests initially checked only local write success. They now close the connection, await the independent peer, and assert successful authentication and the decoded key event. Follow-up review found no remaining issue in the reviewed scope.
+
+Validation: all 22 tests pass; release app builds and passes signature verification. The real WayVNC endpoint now negotiates RSA-AES and reaches its host-key trust prompt. A fully authenticated desktop on that host remains user verification, pending their trust decision and credentials. No server settings were changed and no deployment occurred.
+
+Standards: 1 finding resolved (incorrect SASL warning). Spec: 1 finding resolved (missing independent input assertion).

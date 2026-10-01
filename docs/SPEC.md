@@ -14,6 +14,7 @@ One native window per active computer. Compact title bar: centered computer name
 
 ## Required behavior
 
+- Automatically negotiate common VNC authentication, including WayVNC RSA-AES, VNC password, TLS/VeNCrypt, SASL, Apple ARD, and UltraVNC MSLogonII; prefer full-session encryption and keep credentials and identity prompts simple.
 - Connections to common macOS Screen Sharing, Linux, and Windows VNC servers, locally, through VPN, or to reachable internet addresses.
 - Optional SSH tunnel with password or private-key authentication and host identity checking.
 - Warn before unencrypted direct connections; remember acceptance per saved connection. Reset warnings in Settings. Never silently bypass certificate or changed-host checks.

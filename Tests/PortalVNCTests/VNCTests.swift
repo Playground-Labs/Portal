@@ -8,18 +8,84 @@ private final class Capture {
     var pcm = Data()
     var audioAvailable = false
     var allowUnencrypted = true
+    var trustPrompts = 0
+    var insecurePrompts = 0
+    var credentialPrompts = 0
 }
 
 final class VNCTests: XCTestCase {
     func testRealRFBConnectionExchangesPixelsInputClipboardLayoutAndAudio() throws { try exchange(mode: "multi") }
+    func testAppleARDUsernamePasswordSession() throws { try exchange(mode: "ard") }
+    func testUltraVNCMSLogonSession() throws { try exchange(mode: "mslogon") }
+    func testTLSUsernamePasswordSession() throws { try exchange(mode: "tls") }
+    func testSASLWithExternalTunnelProtection() throws { try exchange(mode: "sasl-tunnel") }
+    func testSASLRejectsPlaintextWithoutProtection() throws { try exchange(mode: "sasl-plain-deny") }
+    func testSASLOverTLSAuthentication() throws { try exchange(mode: "tls-sasl") }
+    func testLegacyRFB33PasswordAuthentication() throws { try exchange(mode: "auth33") }
     func testPasswordAuthenticationAndSingleDisplayResize() throws { try exchange(mode: "auth") }
     func testDecliningUnencryptedConnectionSendsNoDesktopRequests() throws { try exchange(mode: "deny") }
     func testUnsupportedAuthenticationExplainsConnectionFailure() throws { try exchange(mode: "unsupported") }
+    func testRSAAESEncryptedSession() throws { try rsaExchange("rsa-129") }
+    func testPrefersEncryptedAuthenticationOverServerOrder() throws { try rsaExchange("rsa-129-preference") }
+    func testRSAAES128Session() throws { try rsaExchange("rsa-5") }
+    func testRSAAESAuthenticationOnly() throws { try rsaExchange("rsa-6"); try rsaExchange("rsa-130") }
+    func testRSAAESRejectsTamperedRecordBeforeCredentials() throws { try rsaExchange("rsa-129-tamper") }
+    func testRSAAESRejectsUntrustedHostBeforeCredentials() throws { try rsaExchange("rsa-129-deny") }
+    private func rsaExchange(_ mode: String) throws {
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: output) }
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let server = Process()
+        server.executableURL = root.appendingPathComponent(".build/auth-python/bin/python3")
+        server.arguments = [Bundle.module.url(forResource: "rsa_server", withExtension: "py")!.path, output.path, mode]
+        let pipe = Pipe(); server.standardOutput = pipe
+        try server.run(); defer { if server.isRunning { server.terminate() } }
+        var line = Data()
+        while let byte = try pipe.fileHandleForReading.read(upToCount: 1), !byte.isEmpty {
+            if byte[0] == 10 { break }; line.append(byte)
+        }
+        let port = try XCTUnwrap(Int32(String(decoding: line, as: UTF8.self)))
+        let capture = Capture(); capture.allowUnencrypted = !mode.contains("deny")
+        var cb = PortalCallbacks(); cb.context = Unmanaged.passUnretained(capture).toOpaque()
+        cb.authorize = { ctx,kind,_ in
+            let capture = Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue()
+            if kind == 3 { capture.trustPrompts += 1 }
+            return capture.allowUnencrypted ? 1 : 0
+        }
+        cb.credentials = { ctx,_,user,password in
+            Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().credentialPrompts += 1
+            user?.pointee = strdup("fixture"); password?.pointee = strdup("secret"); return 1
+        }
+        cb.frame = { ctx,bytes,w,h in Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().pixels = Data(bytes: bytes!, count: Int(w*h*4)) }
+        let client = try XCTUnwrap(portal_vnc_create(cb)); var destroyed = false
+        defer { if !destroyed { portal_vnc_destroy(client) } }
+        let connected = portal_vnc_connect(client,"127.0.0.1",port,0,0,"")
+        if mode.contains("tamper") || mode.contains("deny") {
+            XCTAssertEqual(connected,0)
+            XCTAssertEqual(capture.credentialPrompts,0)
+            XCTAssertTrue(String(cString: portal_vnc_error(client)).contains(mode.contains("deny") ? "cancelled" : "verification failed"))
+            return
+        }
+        guard connected == 1 else { XCTFail(String(cString: portal_vnc_error(client))); return }
+        XCTAssertEqual(capture.trustPrompts,1)
+        XCTAssertEqual(capture.credentialPrompts,1)
+        XCTAssertEqual(portal_vnc_encrypted(client), mode == "rsa-6" || mode == "rsa-130" ? 0 : 1)
+        let deadline = Date().addingTimeInterval(4)
+        while capture.pixels.isEmpty, Date() < deadline { XCTAssertGreaterThanOrEqual(portal_vnc_poll(client),0) }
+        XCTAssertEqual(capture.pixels, Data([255,0,0,0,0,255,0,0]))
+        XCTAssertEqual(portal_vnc_key(client,0x61,1),1)
+        portal_vnc_destroy(client); destroyed = true; server.waitUntilExit()
+        XCTAssertEqual(server.terminationStatus,0)
+        let observed = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: output)) as? [String:Any])
+        XCTAssertEqual(observed["authenticated"] as? Bool,true)
+        XCTAssertEqual(observed["key"] as? [Int],[1,97])
+    }
     private func exchange(mode: String) throws {
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: output) }
         let server = Process()
-        server.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        server.executableURL = root.appendingPathComponent(".build/auth-python/bin/python3")
         server.arguments = [Bundle.module.url(forResource: "rfb_server", withExtension: "py")!.path, output.path, mode]
         let pipe = Pipe(); server.standardOutput = pipe
         try server.run()
@@ -32,8 +98,12 @@ final class VNCTests: XCTestCase {
         let capture = Capture(); capture.allowUnencrypted = mode != "deny"
         var callbacks = PortalCallbacks()
         callbacks.context = Unmanaged.passUnretained(capture).toOpaque()
-        callbacks.authorize = { ctx,_,_ in Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().allowUnencrypted ? 1 : 0 }
-        callbacks.credentials = { _,_,user,password in user?.pointee = strdup(""); password?.pointee = strdup("secret"); return 1 }
+        callbacks.authorize = { ctx,kind,_ in
+            let c = Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue()
+            if kind == 1 { c.insecurePrompts += 1 }
+            return c.allowUnencrypted ? 1 : 0
+        }
+        callbacks.credentials = { ctx,_,user,password in Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().credentialPrompts += 1; user?.pointee = strdup("fixture"); password?.pointee = strdup("secret"); return 1 }
         callbacks.frame = { ctx, bytes,w,h in
             Unmanaged<Capture>.fromOpaque(ctx!).takeUnretainedValue().pixels = Data(bytes: bytes!, count: Int(w*h*4))
         }
@@ -50,12 +120,17 @@ final class VNCTests: XCTestCase {
         let client=try XCTUnwrap(portal_vnc_create(callbacks))
         var destroyed = false
         defer { if !destroyed { portal_vnc_destroy(client) } }
-        let connected = portal_vnc_connect(client,"127.0.0.1",port,0,0,"")
+        let connected = portal_vnc_connect(client,"127.0.0.1",port,mode == "sasl-tunnel" ? 1 : 0,0,"")
+        if mode == "sasl-plain-deny" {
+            XCTAssertEqual(connected,0); XCTAssertEqual(capture.credentialPrompts,0); XCTAssertEqual(capture.insecurePrompts,0)
+            return
+        }
+        if mode == "sasl-tunnel" || mode == "tls-sasl" { XCTAssertEqual(capture.insecurePrompts,0); XCTAssertEqual(capture.credentialPrompts,1) }
         if mode == "unsupported" {
             XCTAssertEqual(connected, 0)
             let error = String(cString: portal_vnc_error(client))
             XCTAssertTrue(error.contains("authentication"), error)
-            XCTAssertTrue(error.contains("129, 5"), error)
+            XCTAssertTrue(error.contains("250, 251"), error)
             return
         }
         if mode == "deny" {

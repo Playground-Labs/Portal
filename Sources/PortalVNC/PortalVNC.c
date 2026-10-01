@@ -1,5 +1,8 @@
 #include "PortalVNC.h"
 #include <rfb/rfbclient.h>
+#include "RSAAuth.h"
+#include <openssl/provider.h>
+#include <openssl/ssl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,6 +17,7 @@ struct PortalVNC {
     rfbClient *client;
     int tunneled, authorized, fatal, ready, audio, screenCount;
     char error[512];
+    char *saslUser, *saslPassword;
     uint8_t fingerprint[32];
     int hasFingerprint;
     int automaticQuality, frameCount;
@@ -36,7 +40,7 @@ static void diagnostic_log(const char *format, ...) {
     char diagnostic[512];
     va_list args; va_start(args, format);
     vsnprintf(diagnostic, sizeof(diagnostic), format, args); va_end(args);
-        snprintf(active->error, sizeof(active->error),
+    snprintf(active->error, sizeof(active->error),
                  "This server requires authentication Portal does not support (types %.*s). Use a server authentication method compatible with Portal.",
                  (int)strcspn(diagnostic + strlen(prefix), "\r\n"), diagnostic + strlen(prefix));
 }
@@ -53,14 +57,22 @@ static rfbBool allocate(rfbClient *c) {
     return TRUE;
 }
 static int authorize(PortalVNC *p) {
-    if (p->authorized || p->tunneled || p->client->tlsSession) return 1;
+    if (p->authorized || p->tunneled || p->client->tlsSession || p->client->portalRead || p->client->saslconn) return 1;
     if (!p->cb.authorize || !p->cb.authorize(p->cb.context,1,"This connection is not encrypted.")) return fail(p,"Connection cancelled.");
     p->authorized = 1; return 1;
 }
+static char *sasl_user(rfbClient *c);
 static char *password(rfbClient *c) {
     PortalVNC *p=owner(c); char *user=NULL,*pass=NULL;
+    if((c->authScheme==rfbSASL || c->subAuthScheme==rfbVeNCryptX509SASL || c->subAuthScheme==rfbVeNCryptTLSSASL) && !p->saslPassword && !sasl_user(c)) return NULL;
+    if(p->saslPassword) { pass=p->saslPassword; p->saslPassword=NULL; return pass; }
     if (!authorize(p) || !p->cb.credentials || !p->cb.credentials(p->cb.context,1,&user,&pass)) { free(user); free(pass); return NULL; }
     free(user); return pass;
+}
+static char *sasl_user(rfbClient *c) {
+    PortalVNC *p=owner(c);
+    if(!p->saslUser && (!p->cb.credentials || !p->cb.credentials(p->cb.context,2,&p->saslUser,&p->saslPassword))) return NULL;
+    return p->saslUser;
 }
 static rfbCredential *credential(rfbClient *c,int kind) {
     PortalVNC *p=owner(c); rfbCredential *cred=calloc(1,sizeof(*cred));
@@ -124,19 +136,25 @@ static rfbBool message(rfbClient *c,rfbServerToClientMsg *msg) {
     if(length && p->cb.audio) p->cb.audio(p->cb.context,data,length);
     free(data); return TRUE;
 }
+static rfbBool rsa_auth(rfbClient *c,uint32_t scheme) {
+    PortalVNC *p=owner(c); return portal_rsa_auth(c,scheme,p->cb,p->error,sizeof(p->error));
+}
+static const uint32_t securityTypes[]={129,5,130,6,0};
 static int encodings[]={-259,rfbEncodingExtDesktopSize,0};
-static rfbClientProtocolExtension extension={.encodings=encodings,.handleEncoding=encoding,.handleMessage=message};
+static rfbClientProtocolExtension extension={.encodings=encodings,.handleEncoding=encoding,.handleMessage=message,.securityTypes=securityTypes,.handleAuthentication=rsa_auth};
 static pthread_once_t registration=PTHREAD_ONCE_INIT;
-static void register_extension(void) { rfbClientRegisterExtension(&extension); rfbClientLog=diagnostic_log; rfbClientErr=log_message; }
+static OSSL_PROVIDER *defaultProvider;
+static void register_extension(void) { defaultProvider=OSSL_PROVIDER_load(NULL,"default"); rfbClientRegisterExtension(&extension); rfbClientLog=diagnostic_log; rfbClientErr=log_message; }
 PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     pthread_once(&registration,register_extension);
+    if(!defaultProvider) return NULL;
     PortalVNC *p=calloc(1,sizeof(*p)); if(!p) return NULL;
     p->cb=cb; p->client=rfbGetClient(8,3,4);
     if(!p->client) { free(p); return NULL; }
     rfbClient *c=p->client; rfbClientSetClientData(c,&tag,p);
     c->MallocFrameBuffer=allocate; c->FinishedFrameBufferUpdate=frame;
     c->GotXCutText=clipboard; c->GotXCutTextUTF8=clipboard_utf8;
-    c->GetPassword=password; c->GetCredential=credential; c->GetX509CertFingerprintMismatchDecision=certificate;
+    c->GetPassword=password; c->GetUser=sasl_user; c->GetCredential=credential; c->GetX509CertFingerprintMismatchDecision=certificate;
     c->canHandleNewFBSize=TRUE; c->connectTimeout=8; c->readTimeout=8;
     c->format.bigEndian=FALSE; c->format.redShift=0; c->format.greenShift=8; c->format.blueShift=16;
     c->appData.useRemoteCursor=FALSE; c->appData.compressLevel=1;
@@ -144,7 +162,7 @@ PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
 }
 int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int quality,const char *fingerprint) { LOG_SCOPE(p);
     if(!p || !host || port<1 || port>65535 || p->ready) return 0;
-    active=p; rfbClient *c=p->client; p->tunneled=tunnel;
+    active=p; rfbClient *c=p->client; p->tunneled=tunnel; c->portalExternalSSF=tunnel?128:0;
     if(fingerprint && strlen(fingerprint)==64) {
         p->hasFingerprint=1;
         for(int i=0;i<32;i++) { unsigned int value; if(sscanf(fingerprint+i*2,"%2x",&value)!=1) { p->hasFingerprint=0; break; } p->fingerprint[i]=value; }
@@ -158,7 +176,7 @@ int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int qua
 }
 int portal_vnc_poll(PortalVNC *p) { LOG_SCOPE(p);
     if(!p || !p->ready || p->fatal) return -1;
-    active=p; int result=WaitForMessage(p->client,20000);
+    active=p; int result=(p->client->buffered || portal_rsa_pending(p->client) || (p->client->tlsSession && SSL_pending(p->client->tlsSession)) || p->client->saslDecodedLength>p->client->saslDecodedOffset) ? 1 : WaitForMessage(p->client,20000);
     uint64_t previousUpdates=p->updates;
     struct timespec start,end; clock_gettime(CLOCK_MONOTONIC,&start);
     int handled=result<=0 || HandleRFBServerMessage(p->client);
@@ -196,6 +214,6 @@ int portal_vnc_audio(PortalVNC *p,int enabled) { LOG_SCOPE(p);
     return (!enabled || WriteToRFBServer(p->client,format,sizeof(format))) && WriteToRFBServer(p->client,command,sizeof(command));
 }
 int portal_vnc_quality(PortalVNC *p,int quality) { LOG_SCOPE(p); if(!p || !p->ready || quality < -1 || quality>9) return 0; p->automaticQuality=quality<0; p->client->appData.qualityLevel=quality<0 ? 6 : quality; return !!SetFormatAndEncodings(p->client); }
-int portal_vnc_encrypted(PortalVNC *p) { LOG_SCOPE(p); return p && (p->tunneled || p->client->tlsSession!=NULL); }
+int portal_vnc_encrypted(PortalVNC *p) { LOG_SCOPE(p); return p && (p->tunneled || p->client->tlsSession!=NULL || p->client->portalRead!=NULL || p->client->saslconn!=NULL); }
 const char *portal_vnc_error(PortalVNC *p) { LOG_SCOPE(p); return p && p->error[0] ? p->error : "The connection closed unexpectedly."; }
-void portal_vnc_destroy(PortalVNC *p) { LOG_SCOPE(p); if(!p) return; if(p->client) { free(p->client->frameBuffer); p->client->frameBuffer=NULL; rfbClientCleanup(p->client); } if(active==p) active=NULL; free(p); }
+void portal_vnc_destroy(PortalVNC *p) { LOG_SCOPE(p); if(!p) return; if(p->client) { portal_rsa_destroy(p->client); free(p->client->frameBuffer); p->client->frameBuffer=NULL; rfbClientCleanup(p->client); } free(p->saslUser); if(p->saslPassword) { OPENSSL_cleanse(p->saslPassword,strlen(p->saslPassword)); free(p->saslPassword); } if(active==p) active=NULL; free(p); }

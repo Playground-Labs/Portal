@@ -2,6 +2,10 @@ import AppKit
 import SwiftUI
 import PortalCore
 
+if let frameworks = Bundle.main.privateFrameworksURL,
+   FileManager.default.fileExists(atPath: frameworks.appendingPathComponent("legacy.dylib").path) {
+    setenv("OPENSSL_MODULES", frameworks.path, 1)
+}
 registerPortalFonts()
 
 if CommandLine.arguments.contains("--ssh-askpass") { runAskpass() }
