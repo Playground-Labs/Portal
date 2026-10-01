@@ -36,6 +36,6 @@ One finding resolved: direct SASL connections incorrectly prompted as unencrypte
 
 One finding resolved: RSA input tests initially checked only local write success. They now close the connection, await the independent peer, and assert successful authentication and the decoded key event. Follow-up review found no remaining issue in the reviewed scope.
 
-Validation: all 22 tests pass; release app builds and passes signature verification. The real WayVNC endpoint now negotiates RSA-AES and reaches its host-key trust prompt. A fully authenticated desktop on that host remains user verification, pending their trust decision and credentials. No server settings were changed and no deployment occurred.
+Validation: all 22 tests pass; release app builds and passes signature verification. A separate VNC-password run with `OPENSSL_MODULES` pointed at the bundled provider passes; the provider carries its own loader-relative dependency path. The real WayVNC endpoint now negotiates RSA-AES and reaches its host-key trust prompt. A fully authenticated desktop on that host remains user verification, pending their trust decision and credentials. No server settings were changed and no deployment occurred.
 
 Standards: 1 finding resolved (incorrect SASL warning). Spec: 1 finding resolved (missing independent input assertion).

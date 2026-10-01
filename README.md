@@ -44,6 +44,12 @@ swift test
 
 Tests cover address parsing, saved settings with no passwords in JSON, corrupt-file protection, and real TCP RFB exchanges: VNC password authentication, pixels, keyboard/pointer input, clipboard, monitor layouts, safe resize requests, PCM audio, final-frame delivery under UI load, and reconnect after a server outage. RSA tests use a separate PyCryptodome implementation (installed in `.build/auth-python` by `prepare-tests.sh`) and verify rejection of tampered records and untrusted keys. The test peers are not production VNC servers.
 
+To verify the app bundle’s legacy-password provider after building it:
+
+```sh
+OPENSSL_MODULES="$PWD/dist/Portal.app/Contents/Frameworks" swift test --filter VNCTests/testPasswordAuthenticationAndSingleDisplayResize
+```
+
 Settings live in `~/Library/Application Support/Portal/computers.json`; SSH fingerprints in the adjacent `known_hosts`. Passwords live in Keychain. Appearance and app preferences use macOS UserDefaults. Portal has no telemetry.
 
 See [the accepted product brief](docs/SPEC.md) and [dependency notices](THIRD_PARTY.md).

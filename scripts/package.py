@@ -62,6 +62,7 @@ for library in tuple(seen):
         shutil.copy2(provider,target)
         subprocess.run(['chmod','u+w',str(target)],check=True)
         bundle(target,provider)
+        subprocess.run(['install_name_tool','-add_rpath','@loader_path',str(target)],check=True)
 versions = [(14,0)]
 for binary in [executable, *(contents/'Frameworks').iterdir()]:
     load_commands = subprocess.check_output(['otool','-l',str(binary)],text=True)
