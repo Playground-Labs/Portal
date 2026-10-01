@@ -7,6 +7,7 @@ typedef struct { uint32_t id; int x, y, width, height; } PortalScreen;
 typedef struct {
     void *context;
     void (*frame)(void *, const uint8_t *, int, int);
+    void (*cursor)(void *, const uint8_t *, int, int, int, int); /* RGBA, width/height, hotspot; NULL hides the cursor. */
     void (*clipboard)(void *, const char *, int, int);
     void (*layout)(void *, const PortalScreen *, int, int);
     void (*audio)(void *, const uint8_t *, int); /* NULL/0 announces availability; PCM is S16 LE, stereo, 44100 Hz. */

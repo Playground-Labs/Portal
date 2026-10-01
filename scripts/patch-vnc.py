@@ -137,3 +137,14 @@ s = s[:first] + '\n    if (keylen == 8) return portal_mslogon_dh(pub_out, priv_o
 second = s.index(anchor, s.index('int dh_compute_shared_key(')) + len(anchor)
 s = s[:second] + '\n    if (keylen == 8) return portal_mslogon_dh(shared_out, NULL, priv, pub, keylen, prime);' + s[second:]
 crypto.write_text(s)
+
+# An empty shape tells viewers to hide a previously supplied cursor.
+cursor = root / 'src/libvncclient/cursor.c'
+s = cursor.read_text()
+anchor = "  if (width * height == 0)\n    return TRUE;"
+assert s.count(anchor) == 1
+s = s.replace(anchor, """  if (width * height == 0) {
+    if (client->GotCursorShape) client->GotCursorShape(client, xhot, yhot, 0, 0, bytesPerPixel);
+    return TRUE;
+  }""")
+cursor.write_text(s)

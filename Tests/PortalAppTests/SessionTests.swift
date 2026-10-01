@@ -1,9 +1,37 @@
 import XCTest
 import AppKit
 import PortalCore
+import PortalVNC
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testServerCursorShapeHotspotAndHide() async throws {
+        let (server,address) = try peer("cursor")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.remoteCursor != nil }
+        let cursor = try XCTUnwrap(session.remoteCursor)
+        XCTAssertEqual(cursor.hotSpot,NSPoint(x:1,y:0))
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data:try XCTUnwrap(cursor.image.tiffRepresentation)))
+        XCTAssertEqual(bitmap.pixelsWide,2); XCTAssertEqual(bitmap.pixelsHigh,1)
+        XCTAssertEqual(try XCTUnwrap(bitmap.colorAt(x:0,y:0)).redComponent,1,accuracy:0.01)
+        XCTAssertEqual(try XCTUnwrap(bitmap.colorAt(x:0,y:0)).alphaComponent,1)
+        XCTAssertEqual(try XCTUnwrap(bitmap.colorAt(x:1,y:0)).alphaComponent,0)
+        session.key(0xff1b,down:true)
+        try await until { session.remoteCursor == nil }
+    }
+    func testIdlePollingDoesNotBlockInputQueue() throws {
+        let (server,address) = try peer("idle")
+        defer { if server.isRunning { server.terminate() } }
+        var callbacks = PortalCallbacks(); callbacks.authorize = { _,_,_ in 1 }
+        let client = try XCTUnwrap(portal_vnc_create(callbacks)); defer { portal_vnc_destroy(client) }
+        let port = try XCTUnwrap(Int32(address.split(separator:":").last!))
+        XCTAssertEqual(portal_vnc_connect(client,"127.0.0.1",port,0,6,""),1)
+        let start = Date()
+        for _ in 0..<50 { XCTAssertEqual(portal_vnc_poll(client),0) }
+        XCTAssertLessThan(Date().timeIntervalSince(start),0.1,"Idle reads must not hold the input queue")
+    }
     func testRemoteCursorRemainsHiddenAfterKeyboardRelease() throws {
         let session = Session(Computer(name:"Test",address:"127.0.0.1"))
         let canvas = DesktopCanvas(session:session)

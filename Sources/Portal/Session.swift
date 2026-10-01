@@ -7,6 +7,7 @@ import PortalVNC
 final class Session: ObservableObject {
     @Published var computer: Computer
     @Published var image: CGImage?
+    @Published var remoteCursor: NSCursor?
     @Published var status = "Connecting"
     @Published var error = ""
     @Published var connected = false
@@ -49,7 +50,7 @@ final class Session: ObservableObject {
     func start() {
         let reconnecting = retrying
         let token = advance()
-        pendingSize = nil; status = "Connecting"; error = ""; connected = false; retrying = false; image = nil; audioAvailable = false; canResize = false; screens = []; selectedScreen = nil
+        pendingSize = nil; status = "Connecting"; error = ""; connected = false; retrying = false; image = nil; remoteCursor = nil; audioAvailable = false; canResize = false; screens = []; selectedScreen = nil
         let settings = computer
         queue.async { [self] in
             cleanup(); tunnelReady = false; workerGeneration = token; cancelledPrompt = false; promptedCredential = false
@@ -66,6 +67,17 @@ final class Session: ObservableObject {
                 cb.frame = { ctx, bytes, width, height in
                     let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
                     session.receiveFrame(bytes!, width: Int(width), height: Int(height))
+                }
+                cb.cursor = { ctx, bytes, width, height, x, y in
+                    let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
+                    let token = session.workerGeneration
+                    let data = bytes.map { Data(bytes:$0,count:Int(width)*Int(height)*4) }
+                    DispatchQueue.main.async {
+                        guard session.isCurrent(token) else { return }
+                        guard let data, let provider = CGDataProvider(data:data as CFData),
+                              let image = CGImage(width:Int(width),height:Int(height),bitsPerComponent:8,bitsPerPixel:32,bytesPerRow:Int(width)*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGBitmapInfo(rawValue:CGImageAlphaInfo.last.rawValue).union(.byteOrder32Big),provider:provider,decode:nil,shouldInterpolate:false,intent:.defaultIntent) else { session.remoteCursor = nil; return }
+                        session.remoteCursor = NSCursor(image:NSImage(cgImage:image,size:NSSize(width:Int(width),height:Int(height))),hotSpot:NSPoint(x:min(max(0,Int(x)),Int(width)-1),y:min(max(0,Int(y)),Int(height)-1)))
+                    }
                 }
                 cb.clipboard = { ctx, text, length, utf8 in
                     let session = Unmanaged<Session>.fromOpaque(ctx!).takeUnretainedValue()
@@ -133,13 +145,15 @@ final class Session: ObservableObject {
             image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width*4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue).union(.byteOrder32Big), provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
         }
     }
-    private func poll(_ token: Int) {
-        queue.async { [self] in
+    // Idle pacing leaves the serial queue free for input; active reads still finish one RFB message.
+    private func poll(_ token: Int, idle: Bool = false) {
+        queue.asyncAfter(deadline:.now() + (idle ? 0.005 : 0)) { [self] in
             guard isCurrent(token), workerGeneration == token, let client else { return }
-            if portal_vnc_poll(client) < 0 {
+            let result = portal_vnc_poll(client)
+            if result < 0 {
                 let message = String(cString: portal_vnc_error(client)); cleanup()
                 DispatchQueue.main.async { [self] in if isCurrent(token) { failed(message, retry: true) } }
-            } else { poll(token) }
+            } else { poll(token,idle:result == 0) }
         }
     }
     private func cleanup() { if let client { portal_vnc_destroy(client); self.client = nil }; tunnel?.stop(); tunnel = nil }

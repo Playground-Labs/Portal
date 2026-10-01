@@ -92,6 +92,14 @@ static rfbBool certificate(rfbClient *c,const char *subject,time_t from,time_t u
     for(int i=0;i<32;i++) snprintf(text+i*2,3,"%02x",hash[i]);
     return p->cb.authorize && p->cb.authorize(p->cb.context,2,text);
 }
+static void cursor(rfbClient *c, int x, int y, int width, int height, int bytesPerPixel) {
+    PortalVNC *p=owner(c);
+    if(!p->cb.cursor) return;
+    if(width==0 || height==0) { p->cb.cursor(p->cb.context,NULL,0,0,0,0); return; }
+    if(bytesPerPixel!=4 || !c->rcSource || !c->rcMask) return;
+    for(int i=0;i<width*height;i++) c->rcSource[i*4+3]=c->rcMask[i]?255:0;
+    p->cb.cursor(p->cb.context,c->rcSource,width,height,x,y);
+}
 static void frame(rfbClient *c) { PortalVNC *p=owner(c); p->updates++; if(p->cb.frame) p->cb.frame(p->cb.context,c->frameBuffer,c->width,c->height); }
 static void clipboard(rfbClient *c,const char *text,int length) { PortalVNC *p=owner(c); if(length>=0 && length<=1048576 && p->cb.clipboard) p->cb.clipboard(p->cb.context,text,length,0); }
 static void clipboard_utf8(rfbClient *c,const char *text,int length) { PortalVNC *p=owner(c); if(length>=0 && length<=1048576 && p->cb.clipboard) p->cb.clipboard(p->cb.context,text,length,1); }
@@ -157,7 +165,7 @@ PortalVNC *portal_vnc_create(PortalCallbacks cb) { LOG_SCOPE(NULL);
     c->GetPassword=password; c->GetUser=sasl_user; c->GetCredential=credential; c->GetX509CertFingerprintMismatchDecision=certificate;
     c->canHandleNewFBSize=TRUE; c->connectTimeout=8; c->readTimeout=8;
     c->format.bigEndian=FALSE; c->format.redShift=0; c->format.greenShift=8; c->format.blueShift=16;
-    c->appData.useRemoteCursor=FALSE; c->appData.compressLevel=1;
+    c->GotCursorShape=cursor; c->appData.useRemoteCursor=p->cb.cursor!=NULL; c->appData.compressLevel=1;
     return p;
 }
 int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int quality,const char *fingerprint) { LOG_SCOPE(p);
@@ -176,7 +184,7 @@ int portal_vnc_connect(PortalVNC *p,const char *host,int port,int tunnel,int qua
 }
 int portal_vnc_poll(PortalVNC *p) { LOG_SCOPE(p);
     if(!p || !p->ready || p->fatal) return -1;
-    active=p; int result=(p->client->buffered || portal_rsa_pending(p->client) || (p->client->tlsSession && SSL_pending(p->client->tlsSession)) || p->client->saslDecodedLength>p->client->saslDecodedOffset) ? 1 : WaitForMessage(p->client,20000);
+    active=p; int result=(p->client->buffered || portal_rsa_pending(p->client) || (p->client->tlsSession && SSL_pending(p->client->tlsSession)) || p->client->saslDecodedLength>p->client->saslDecodedOffset) ? 1 : WaitForMessage(p->client,0);
     uint64_t previousUpdates=p->updates;
     struct timespec start,end; clock_gettime(CLOCK_MONOTONIC,&start);
     int handled=result<=0 || HandleRFBServerMessage(p->client);

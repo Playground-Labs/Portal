@@ -28,19 +28,25 @@ def connection(listener, color):
             kind=take(1)[0]
             if kind==0: take(19)
             elif kind==2:
-                _,n=struct.unpack('!BH',take(3)); take(n*4)
+                _,n=struct.unpack('!BH',take(3)); encodings=struct.unpack('!'+str(n)+'i',take(n*4))
+                if mode=='cursor': assert -239 in encodings
             elif kind==3:
                 take(9)
-                if not sent:
+                if not sent and mode != 'idle':
                     time.sleep(0.25)
                     header=struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)
                     peer.sendall(header+bytes(color)*8)
                     if mode=='burst':
                         peer.sendall(header+bytes([0,255,0,0])*8)
+                    if mode=='cursor':
+                        cursor=struct.pack('!BBHHHHHi',0,0,1,1,0,2,1,-239)
+                        peer.sendall(cursor+bytes([255,0,0,0,0,255,0,0])+b'\x80')
                     sent=True
                     if mode=='reconnect' and color[0]==255:
                         time.sleep(0.3); break
-            elif kind==4: take(7)
+            elif kind==4:
+                take(7)
+                if mode=='cursor': peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,0,0,-239))
             elif kind==5: take(5)
             else: raise AssertionError(kind)
     except (EOFError,ConnectionResetError): pass

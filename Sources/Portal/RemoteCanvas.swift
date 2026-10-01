@@ -41,15 +41,15 @@ final class DesktopCanvas: NSView {
     // Device masks from IOKit/hidsystem/IOLLEvent.h distinguish left and right keys.
     private let modifierKeys: [(UInt16,UInt,UInt32)] = [(56,0x2,0xffe1),(60,0x4,0xffe2),(59,0x1,0xffe3),(62,0x2000,0xffe4),(58,0x20,0xffe9),(61,0x40,0xffea),(55,0x8,0xffeb),(54,0x10,0xffec)]
     private var tracking: NSTrackingArea?
-    private static let remoteCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
+    private static let hiddenCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
     private var usesRemoteCursor: Bool { session.connected && !session.computer.viewOnly && window?.isKeyWindow == true }
     override func cursorUpdate(with event: NSEvent) {
-        (usesRemoteCursor && point(event) != nil ? Self.remoteCursor : NSCursor.arrow).set()
+        (usesRemoteCursor && point(event) != nil ? (session.remoteCursor ?? Self.hiddenCursor) : NSCursor.arrow).set()
     }
     override func resetCursorRects() {
         super.resetCursorRects()
         if usesRemoteCursor {
-            addCursorRect(destinationRect.intersection(visibleRect),cursor:Self.remoteCursor)
+            addCursorRect(destinationRect.intersection(visibleRect),cursor:session.remoteCursor ?? Self.hiddenCursor)
         }
     }
     override var isFlipped: Bool { true }
