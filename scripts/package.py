@@ -9,6 +9,7 @@ for name in ['MacOS', 'Frameworks', 'Resources']:
 source = pathlib.Path(sys.argv[1]).resolve()
 executable = contents / 'MacOS' / 'Portal'
 shutil.copy2(source, executable)
+shutil.copytree(source.parent/'Portal_Portal.bundle', contents/'Resources/Portal_Portal.bundle')
 shutil.copy2(root / 'scripts' / 'ssh-askpass.sh', contents / 'Resources' / 'ssh-askpass.sh')
 info = {
     'CFBundleExecutable':'Portal', 'CFBundleIdentifier':'app.portal.vnc',

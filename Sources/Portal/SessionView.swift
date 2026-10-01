@@ -20,14 +20,14 @@ struct SessionView: View {
                         Color.black.opacity(0.72)
                         VStack(spacing:16) {
                             if session.error.isEmpty { ProgressView().controlSize(.large) } else { Image(systemName:session.retrying ? "arrow.clockwise" : "network.slash").font(.system(size:30,weight:.light)) }
-                            Text(session.status).font(.system(size:20,weight:.semibold))
+                            Text(session.status).font(.portal(size:20,weight:.semibold))
                             Text(session.computer.name).foregroundStyle(.secondary)
-                            if !session.error.isEmpty { Text(session.error).font(.system(size:12)).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled).frame(maxWidth:420) }
+                            if !session.error.isEmpty { Text(session.error).font(.portal(size:12)).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled).frame(maxWidth:420) }
                             HStack { if !session.error.isEmpty { Button("Try Again") { session.start() }.buttonStyle(SoftButton(primary:true)) }; Button(session.retrying || session.error.isEmpty ? "Cancel" : "Close") { session.window?.close() }.buttonStyle(SoftButton()) }
                         }.padding(32).foregroundStyle(.white).colorScheme(.dark)
                     }
                     if showHint && session.connected {
-                        VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.system(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(.regularMaterial,in:Capsule()).padding(.bottom,24) }.allowsHitTesting(false)
+                        VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.portal(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(.regularMaterial,in:Capsule()).padding(.bottom,24) }.allowsHitTesting(false)
                     }
                     if fullscreen && hideToolbar { VStack { Color.clear.frame(height:8).contentShape(Rectangle()).onHover { over in if over { revealControls = true } }; Spacer() } }
                 }
@@ -44,7 +44,7 @@ struct SessionView: View {
         HStack(spacing:6) {
             Spacer().frame(width:76)
             Spacer()
-            HStack(spacing:6) { if session.encrypted { Image(systemName:"lock.fill").font(.system(size:9)).foregroundStyle(.secondary) }; Text(session.computer.name).font(.system(size:12,weight:.medium)).lineLimit(1) }
+            HStack(spacing:6) { if session.encrypted { Image(systemName:"lock.fill").font(.system(size:9)).foregroundStyle(.secondary) }; Text(session.computer.name).font(.portal(size:12,weight:.medium)).lineLimit(1) }
             Spacer()
             Menu {
                 Picker("Display sizing",selection:$session.computer.sizing) { Text("Automatic resize, or fit").tag(DisplaySizing.automatic); Text("Fit to Window").tag(DisplaySizing.fit); Text("Actual Size").tag(DisplaySizing.actual) }
@@ -64,7 +64,7 @@ struct SessionView: View {
             } label: { Image(systemName:session.audioAvailable && session.computer.audioEnabled ? "speaker.wave.2" : "speaker.slash").resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32) }.fixedSize().menuIndicator(.hidden).frame(width:32,height:32).modifier(ControlHover()).foregroundStyle(.secondary).help(session.audioAvailable ? "Sound" : "Audio unavailable on this server").accessibilityLabel("Sound controls")
             Menu {
                 Text(session.status)
-                Text(session.computer.address)
+                Text(session.computer.address).font(.portalMono(size:12))
                 Text(session.encrypted ? "Encrypted connection" : "Unencrypted connection")
                 if let image = session.image { Text("\(image.width) × \(image.height)") }
                 Divider()

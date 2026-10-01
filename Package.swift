@@ -13,6 +13,7 @@ let package = Package(
                 cSettings: [.unsafeFlags(["-I", native + "/include"])],
                 linkerSettings: [.unsafeFlags(["-L", native + "/lib", "-Xlinker", "-rpath", "-Xlinker", native + "/lib"]), .linkedLibrary("vncclient"), .linkedLibrary("iconv")]),
         .executableTarget(name: "Portal", dependencies: ["PortalCore", "PortalVNC"],
+                          resources: [.copy("Resources/Fonts")],
                           linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security")]),
         .testTarget(name: "PortalAppTests", dependencies: ["Portal", "PortalCore"], resources: [.copy("session_server.py")]),
         .testTarget(name: "PortalCoreTests", dependencies: ["PortalCore"]),

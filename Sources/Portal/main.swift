@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 import PortalCore
 
+registerPortalFonts()
+
 if CommandLine.arguments.contains("--ssh-askpass") { runAskpass() }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {

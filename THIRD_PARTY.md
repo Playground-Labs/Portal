@@ -9,3 +9,7 @@ Portal is GPL-2.0-or-later. Distribution must comply with the licenses of the ac
 - System libraries, including zlib, are loaded from macOS and are not redistributed by Portal.
 
 Before distributing binaries, include each bundled library’s exact license and corresponding source as required. The local development bundle is not a signed/notarized public release.
+
+## Fonts
+
+Inter 4.1 (https://rsms.me/inter/) and JetBrains Mono 2.304 (https://www.jetbrains.com/lp/mono/) are bundled under SIL Open Font License 1.1. Original license notices are included beside the fonts in `Sources/Portal/Resources/Fonts` and in the app resource bundle.

@@ -33,13 +33,13 @@ struct SoftButton: ButtonStyle {
         let dark = scheme == .dark
         let background = primary ? (dark ? Color(red:0.30,green:0.22,blue:0.14) : Color(red:0.96,green:0.90,blue:0.81)) : (dark ? Color(red:0.20,green:0.23,blue:0.21) : Color(red:0.94,green:0.95,blue:0.94))
         let foreground = primary ? (dark ? Color(red:0.95,green:0.79,blue:0.54) : Color(red:0.47,green:0.26,blue:0.04)) : Color.primary
-        configuration.label.font(.system(size:12,weight:.medium)).padding(.horizontal,12).frame(minHeight:30).foregroundStyle(foreground).background(background.opacity(configuration.isPressed ? 0.65 : 1),in:RoundedRectangle(cornerRadius:5)).opacity(enabled ? 1 : 0.45).modifier(ControlHover(pressed:configuration.isPressed))
+        configuration.label.font(.portal(size:12,weight:.medium)).padding(.horizontal,12).frame(minHeight:30).foregroundStyle(foreground).background(background.opacity(configuration.isPressed ? 0.65 : 1),in:RoundedRectangle(cornerRadius:5)).opacity(enabled ? 1 : 0.45).modifier(ControlHover(pressed:configuration.isPressed))
     }
 }
 struct PortalAppearance<Content: View>: View {
     @AppStorage("appearance") var appearance = "system"
     @ViewBuilder var content: () -> Content
-    var body: some View { content().tint(.portalAccent).preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil) }
+    var body: some View { content().font(.portal(size:13)).tint(.portalAccent).preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil) }
 }
 
 struct HomeView: View {
@@ -56,15 +56,15 @@ struct HomeView: View {
             VStack(spacing:0) {
                 ScrollView {
                     VStack(alignment:.leading,spacing:26) {
-                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.system(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.system(size:13)) }
+                        VStack(alignment:.leading,spacing:6) { Text("Your computers").font(.portal(size:24,weight:.semibold)); Text("Your 127.0.0.1 away from home").foregroundStyle(.secondary).font(.portal(size:13)) }
                         HStack(spacing:12) {
-                            TextField("Enter an address to connect",text:$address).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
+                            TextField("Enter an address to connect",text:$address).font(.portalMono(size:12)).textFieldStyle(.plain).onSubmit(quickConnect).accessibilityLabel("Quick Connect address")
                             Button("Connect",action:quickConnect).buttonStyle(SoftButton(primary:true)).disabled(address.trimmingCharacters(in:.whitespaces).isEmpty)
                         }.padding(.leading,12).padding(.trailing,7).frame(height:44).background(Color(nsColor:.textBackgroundColor),in:RoundedRectangle(cornerRadius:7)).overlay(RoundedRectangle(cornerRadius:7).strokeBorder(Color.primary.opacity(0.1)))
                         VStack(alignment:.leading,spacing:12) {
                             sectionLabel("SAVED COMPUTERS",count:model.computers.count)
                             if model.computers.isEmpty {
-                                VStack(spacing:12) { Image(systemName:"desktopcomputer").font(.system(size:32,weight:.light)).foregroundStyle(.secondary); Text("Your computers belong here").font(.headline); Text("Save a computer for an effortless return.").foregroundStyle(.secondary) }.frame(maxWidth:.infinity).padding(.vertical,36)
+                                VStack(spacing:12) { Image(systemName:"desktopcomputer").font(.system(size:32,weight:.light)).foregroundStyle(.secondary); Text("Your computers belong here").font(.portal(size:13,weight:.semibold)); Text("Save a computer for an effortless return.").foregroundStyle(.secondary) }.frame(maxWidth:.infinity).padding(.vertical,36)
                             } else {
                                 VStack(spacing:0) { ForEach(model.computers) { computer in
                                     computerRow(computer,saved:true)
@@ -75,7 +75,7 @@ struct HomeView: View {
                         if discoverNearby {
                             VStack(alignment:.leading,spacing:12) {
                                 sectionLabel("NEARBY",count:discovery.computers.count)
-                                if discovery.computers.isEmpty { HStack(spacing:8) { Image(systemName:"network"); Text("Computers on your network appear here.") }.font(.system(size:12)).foregroundStyle(.secondary).padding(.vertical,10) }
+                                if discovery.computers.isEmpty { HStack(spacing:8) { Image(systemName:"network"); Text("Computers on your network appear here.") }.font(.portal(size:12)).foregroundStyle(.secondary).padding(.vertical,10) }
                                 else { ForEach(discovery.computers) { computer in computerRow(computer,saved:false) } }
                             }
                         }
@@ -89,7 +89,7 @@ struct HomeView: View {
                     }.buttonStyle(.plain).foregroundStyle(.secondary).modifier(ControlHover())
                         .help("Settings (⌘,)").accessibilityLabel("Settings")
                     Spacer()
-                    Text("Free and open source").font(.system(size:11)).foregroundStyle(.tertiary)
+                    Text("Free and open source").font(.portal(size:11)).foregroundStyle(.tertiary)
                 }.padding(.leading,6).padding(.trailing,24).frame(height:44)
             }.background(Color.portalBackground)
             .sheet(item:$editing) { computer in ConnectionEditor(computer:computer) { model.save($0) } }
@@ -102,11 +102,11 @@ struct HomeView: View {
             .onReceive(NotificationCenter.default.publisher(for:Notification.Name("PortalAddComputer"))) { _ in editing = Computer(name:"",address:"") }
         }
     }
-    private func sectionLabel(_ text:String,count:Int) -> some View { HStack(spacing:8) { Text(text).tracking(1.1); Text("\(count)").foregroundStyle(.tertiary); Spacer() }.font(.system(size:10,weight:.semibold)).foregroundStyle(.secondary) }
+    private func sectionLabel(_ text:String,count:Int) -> some View { HStack(spacing:8) { Text(text).tracking(1.1); Text("\(count)").foregroundStyle(.tertiary); Spacer() }.font(.portal(size:10,weight:.semibold)).foregroundStyle(.secondary) }
     private func computerRow(_ computer:Computer,saved:Bool) -> some View {
         HStack(spacing:14) {
             Image(systemName:"desktopcomputer").font(.system(size:21,weight:.light)).foregroundStyle(.secondary).frame(width:30)
-            VStack(alignment:.leading,spacing:5) { Text(computer.name).font(.system(size:13,weight:.medium)); Text(computer.address).font(.system(size:11)).foregroundStyle(.secondary) }
+            VStack(alignment:.leading,spacing:5) { Text(computer.name).font(.portal(size:13,weight:.medium)); Text(computer.address).font(.portalMono(size:11)).lineLimit(1).help(computer.address).foregroundStyle(.secondary) }
             Spacer()
             if computer.ssh.enabled { Image(systemName:"lock.shield").font(.system(size:12)).foregroundStyle(.secondary).help("Connects through SSH") }
             Button("Connect") { model.connect(computer) }.buttonStyle(SoftButton(primary:selected == computer.id))
@@ -129,21 +129,21 @@ struct ConnectionEditor: View {
             VStack(spacing:0) {
                 ScrollView {
                     VStack(alignment:.leading,spacing:22) {
-                Text(computer.name.isEmpty ? "New computer" : "Edit computer").font(.system(size:20,weight:.semibold))
+                Text(computer.name.isEmpty ? "New computer" : "Edit computer").font(.portal(size:20,weight:.semibold))
                 VStack(alignment:.leading,spacing:14) {
                     field("Name",placeholder:"Studio Mac",text:$computer.name)
-                    field("Address",placeholder:"computer.local or 192.168.1.10",text:$computer.address)
-                    Text("VNC must be enabled on the remote computer. Add :5901 for a custom port.").font(.system(size:11)).foregroundStyle(.secondary)
+                    field("Address",placeholder:"computer.local or 192.168.1.10",text:$computer.address,monospaced:true)
+                    Text("VNC must be enabled on the remote computer. Add :5901 for a custom port.").font(.portal(size:11)).foregroundStyle(.secondary)
                 }
                 DisclosureGroup("Advanced",isExpanded:$advanced) {
                         VStack(alignment:.leading,spacing:16) {
                             field("Username",placeholder:"Ask when needed",text:$computer.username)
                             Toggle("Connect through SSH",isOn:$computer.ssh.enabled)
                             if computer.ssh.enabled {
-                                HStack { field("SSH server",placeholder:"server.example.com",text:$computer.ssh.host); VStack(alignment:.leading) { Text("Port").font(.system(size:12,weight:.medium)); TextField("22",value:$computer.ssh.port,format:.number.grouping(.never)).textFieldStyle(.roundedBorder).frame(width:72) } }
+                                HStack { field("SSH server",placeholder:"server.example.com",text:$computer.ssh.host,monospaced:true); VStack(alignment:.leading) { Text("Port").font(.portal(size:12,weight:.medium)); TextField("22",value:$computer.ssh.port,format:.number.grouping(.never)).font(.portalMono(size:12)).textFieldStyle(.roundedBorder).frame(width:72) } }
                                 field("SSH username",placeholder:"Username",text:$computer.ssh.username)
-                                HStack(alignment:.bottom) { field("Private key (optional)",placeholder:"Use password or SSH agent",text:$computer.ssh.keyPath); Button("Choose") { let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.showsHiddenFiles = true; if panel.runModal() == .OK { computer.ssh.keyPath = panel.url?.path ?? "" } }.buttonStyle(SoftButton()) }
-                                Text("The VNC address is reached from the SSH server.").font(.caption).foregroundStyle(.secondary)
+                                HStack(alignment:.bottom) { field("Private key (optional)",placeholder:"Use password or SSH agent",text:$computer.ssh.keyPath,monospaced:true); Button("Choose") { let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.showsHiddenFiles = true; if panel.runModal() == .OK { computer.ssh.keyPath = panel.url?.path ?? "" } }.buttonStyle(SoftButton()) }
+                                Text("The VNC address is reached from the SSH server.").font(.portal(size:11)).foregroundStyle(.secondary)
                             }
                             Divider()
                             Picker("Display",selection:$computer.sizing) { Text("Automatic resize, or fit").tag(DisplaySizing.automatic); Text("Fit to window").tag(DisplaySizing.fit); Text("Actual size").tag(DisplaySizing.actual) }
@@ -152,8 +152,8 @@ struct ConnectionEditor: View {
                             Toggle("View only",isOn:$computer.viewOnly)
                             Toggle("Play remote audio when available",isOn:$computer.audioEnabled)
                         }.padding(.top,16).padding(.trailing,4)
-                }.font(.system(size:12)).toggleStyle(.switch).controlSize(.small)
-                if !error.isEmpty { Text(error).foregroundStyle(.red).font(.caption) }
+                }.font(.portal(size:12)).toggleStyle(.switch).controlSize(.small)
+                if !error.isEmpty { Text(error).foregroundStyle(.red).font(.portal(size:11)) }
                     }.padding(24).frame(maxWidth:.infinity,alignment:.leading)
                 }
                 Divider().opacity(0.5)
@@ -161,7 +161,7 @@ struct ConnectionEditor: View {
             }.frame(width:468,height:560)
         }
     }
-    private func field(_ title:String,placeholder:String,text:Binding<String>) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.system(size:12,weight:.medium)); TextField(placeholder,text:text).textFieldStyle(.roundedBorder) } }
+    private func field(_ title:String,placeholder:String,text:Binding<String>,monospaced:Bool = false) -> some View { VStack(alignment:.leading,spacing:7) { Text(title).font(.portal(size:12,weight:.medium)); TextField(placeholder,text:text).font(monospaced ? .portalMono(size:12) : .portal(size:13)).textFieldStyle(.roundedBorder) } }
 }
 
 struct SettingsView: View {
@@ -174,7 +174,7 @@ struct SettingsView: View {
     var body:some View {
         PortalAppearance {
             VStack(spacing:0) {
-                HStack { Text("Settings").font(.system(size:20,weight:.semibold)); Spacer() }
+                HStack { Text("Settings").font(.portal(size:20,weight:.semibold)); Spacer() }
                     .padding(.horizontal,24).padding(.top,20).padding(.bottom,16)
                 ViewThatFits(in:.vertical) {
                     settingsContent.fixedSize(horizontal:false,vertical:true)
@@ -182,11 +182,11 @@ struct SettingsView: View {
                 }.frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.top)
                 Divider().opacity(0.5)
                 HStack {
-                    Text("Portal · Free and open source").font(.system(size:11)).foregroundStyle(.secondary)
+                    Text("Portal · Free and open source").font(.portal(size:11)).foregroundStyle(.secondary)
                     Spacer()
                     Button("Done") { dismiss() }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.defaultAction)
                 }.padding(.horizontal,24).padding(.vertical,12)
-            }.font(.system(size:12)).frame(width:468,height:432)
+            }.font(.portal(size:12)).frame(width:468,height:432)
         }
     }
     private var settingsContent: some View {
@@ -207,10 +207,10 @@ struct SettingsView: View {
             }.toggleStyle(.switch).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
                 .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
             VStack(alignment:.leading,spacing:8) {
-                Text("Privacy & security").font(.system(size:13,weight:.semibold))
+                Text("Privacy & security").font(.portal(size:13,weight:.semibold))
                 Text("Passwords stay in macOS Keychain. No analytics.").foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
                 Button("Reset Connection Trust") { model.resetTrust() }.buttonStyle(SoftButton())
-                Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.system(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
+                Text("Shows encryption and certificate prompts again. Previously trusted SSH servers stay trusted.").font(.portal(size:11)).foregroundStyle(.secondary).fixedSize(horizontal:false,vertical:true)
             }
         }.padding(.horizontal,24).padding(.bottom,16)
     }
