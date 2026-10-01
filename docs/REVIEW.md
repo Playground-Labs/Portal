@@ -69,3 +69,9 @@ Validation: release build passes; all three SessionTests pass, including a regre
 Reproduced with a physical coordinate click inside the menu's 32 × 32 frame but outside its icon: no action, while a center click opened the menu. The shared toolbar icon label now explicitly gives the entire frame a rectangular hit area; the hover styling and rounded appearance are unchanged. This applies to Display, Sound, and Session controls.
 
 Validation: release build succeeds. On the connected host, the formerly missed upper corner and opposite lower corner each opened the menu on the first click; clicking the upper corner again closed it. No protocol or input-capture changes were needed.
+
+## Fullscreen notch — October 1, 2026
+
+Fullscreen controls now overlay the desktop as a dark, bottom-rounded notch, revealed by a narrow top-center hover zone. Moving away hides it after a short delay; open menus keep it visible. Menus are centered beneath the notch. Windowed controls remain unchanged, and the obsolete fullscreen opt-out was removed from Settings. Preference observers remain active even while the toolbar is hidden.
+
+Validation: release build passes; spec review found no issues. In the connected app, verified hidden fullscreen controls, repeated top-center reveal, menu interaction below the notch, dismissal and delayed hiding, no reveal at the top-left edge, and restoration of windowed controls on fullscreen exit. Revealing controls does not change the remote viewport dimensions.

@@ -236,7 +236,6 @@ struct SettingsView: View {
     @AppStorage("appearance") var appearance = "system"
     @AppStorage("autoReconnect") var reconnect = true
     @AppStorage("discoverNearby") var discovery = true
-    @AppStorage("hideFullscreenToolbar") var hideToolbar = true
     var body:some View {
         PortalAppearance {
             VStack(spacing:0) {
@@ -276,8 +275,6 @@ struct SettingsView: View {
                 Toggle(isOn:$discovery) { HStack { Text("Discover nearby computers"); Spacer() } }.frame(minHeight:34)
                 Divider()
                 Toggle(isOn:$reconnect) { HStack { Text("Reconnect after an interruption"); Spacer() } }.frame(minHeight:34)
-                Divider()
-                Toggle(isOn:$hideToolbar) { HStack { Text("Hide session controls in fullscreen"); Spacer() } }.frame(minHeight:34)
             }.toggleStyle(PortalToggle()).controlSize(.small).padding(.horizontal,12).padding(.vertical,4)
                 .background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:8))
             VStack(alignment:.leading,spacing:8) {

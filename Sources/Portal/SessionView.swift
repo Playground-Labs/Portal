@@ -12,12 +12,12 @@ struct SessionView: View {
     @State private var revealControls = false
     @State private var showHint = false
     @State private var hintWork: DispatchWorkItem?
-    @AppStorage("hideFullscreenToolbar") private var hideToolbar = true
-    private var controlsVisible: Bool { !fullscreen || !hideToolbar || revealControls || panel != nil }
+    @State private var hideControlsWork: DispatchWorkItem?
+    @State private var hoveringNotch = false
     var body: some View {
         PortalAppearance {
             VStack(spacing:0) {
-                if controlsVisible { toolbar }
+                if !fullscreen { toolbar }
                 ZStack {
                     RemoteDesktop(session:session)
                     if !session.connected {
@@ -33,14 +33,55 @@ struct SessionView: View {
                     if showHint && session.connected {
                         VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.portal(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(Color.portalBackground,in:RoundedRectangle(cornerRadius:7)).padding(.bottom,24) }.allowsHitTesting(false)
                     }
-                    if fullscreen && hideToolbar { VStack { Color.clear.frame(height:8).contentShape(Rectangle()).onHover { over in if over { revealControls = true } }; Spacer() } }
                 }
-            }.overlay { sessionPanel }.background(Color.portalBackground).ignoresSafeArea(.container,edges:.top)
-            .onReceive(NotificationCenter.default.publisher(for:NSWindow.didEnterFullScreenNotification)) { note in if note.object as? NSWindow === session.window { fullscreen = true; revealControls = false } }
-            .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { note in if note.object as? NSWindow === session.window { fullscreen = false } }
+            }.overlay { sessionPanel }
+                .overlay(alignment:.top) { if fullscreen { fullscreenControls } }
+                .background(Color.portalBackground).ignoresSafeArea(.container,edges:.top)
+            .onReceive(NotificationCenter.default.publisher(for:NSWindow.didEnterFullScreenNotification)) { note in if note.object as? NSWindow === session.window { fullscreen = true; resetControls() } }
+            .onReceive(NotificationCenter.default.publisher(for:NSWindow.didExitFullScreenNotification)) { note in if note.object as? NSWindow === session.window { fullscreen = false; resetControls() } }
+            .onDisappear { hideControlsWork?.cancel(); hintWork?.cancel() }
+            .onChange(of:panel) { _,value in if value == nil && !hoveringNotch { hideControlsSoon() } }
+            .onChange(of:session.computer.sizing) { _,_ in session.updatePreferences() }
+            .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }
+            .onChange(of:session.computer.clipboard) { _,_ in session.updatePreferences() }
+            .onChange(of:session.computer.viewOnly) { _,_ in session.updatePreferences() }
             .onChange(of:session.captured) { _,captured in
                 hintWork?.cancel(); showHint = captured
                 if captured { let work = DispatchWorkItem { showHint = false }; hintWork = work; DispatchQueue.main.asyncAfter(deadline:.now()+4,execute:work) }
+            }
+        }
+    }
+    private func resetControls() {
+        hideControlsWork?.cancel(); panel = nil; revealControls = false; hoveringNotch = false
+    }
+    private func hideControlsSoon() {
+        hideControlsWork?.cancel()
+        let work = DispatchWorkItem { if !hoveringNotch { revealControls = false } }
+        hideControlsWork = work
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.6,execute:work)
+    }
+    private var fullscreenControls: some View {
+        VStack(spacing:0) {
+            if revealControls || panel != nil {
+                HStack(spacing:6) {
+                    if session.encrypted { Image(systemName:"lock.fill").font(.system(size:10)).foregroundStyle(.secondary) }
+                    Text(session.computer.name).font(.portal(size:12,weight:.medium)).lineLimit(1).frame(maxWidth:.infinity,alignment:.leading)
+                    toolbarButton(.display)
+                    toolbarButton(.sound)
+                    toolbarButton(.session)
+                }.padding(.horizontal,10).frame(width:340,height:44)
+                    .background(Color(red:0.10,green:0.11,blue:0.11),in:UnevenRoundedRectangle(bottomLeadingRadius:12,bottomTrailingRadius:12))
+                    .environment(\.colorScheme,.dark)
+                    .onHover { over in
+                        hoveringNotch = over
+                        if over { hideControlsWork?.cancel(); session.window?.makeFirstResponder(nil) }
+                        else { hideControlsSoon() }
+                    }
+            } else {
+                Color.clear.frame(width:160,height:8).contentShape(Rectangle())
+                    .onHover { over in
+                        if over { hideControlsWork?.cancel(); revealControls = true; session.window?.makeFirstResponder(nil) }
+                    }.accessibilityHidden(true)
             }
         }
     }
@@ -56,7 +97,7 @@ struct SessionView: View {
     private var sessionPanel: some View {
         GeometryReader { geometry in
             if let panel {
-                ZStack(alignment:.topTrailing) {
+                ZStack(alignment:fullscreen ? .top : .topTrailing) {
                     Color.clear.contentShape(Rectangle()).onTapGesture { self.panel = nil }.padding(.top,44)
                     ScrollView {
                         VStack(alignment:.leading,spacing:8) {
@@ -77,7 +118,7 @@ struct SessionView: View {
                         .onExitCommand { self.panel = nil }
                         .environment(\.portalInsidePopover,true)
                         .environment(\.portalClosePopover,{ self.panel = nil })
-                        .padding(.top,50).padding(.trailing,6)
+                        .padding(.top,50).padding(.trailing,fullscreen ? 0 : 6)
                 }
             }
         }
@@ -137,10 +178,6 @@ struct SessionView: View {
             toolbarButton(.sound)
             toolbarButton(.session)
         }.buttonStyle(.plain).fixedSize(horizontal:false,vertical:true).padding(.trailing,6).frame(height:44).background(Color.portalBackground)
-        .onHover { over in if fullscreen && hideToolbar && !over { DispatchQueue.main.asyncAfter(deadline:.now()+1) { revealControls = false } } }
-        .onChange(of:session.computer.sizing) { _,_ in session.updatePreferences() }
-        .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }
-        .onChange(of:session.computer.clipboard) { _,_ in session.updatePreferences() }
-        .onChange(of:session.computer.viewOnly) { _,_ in session.updatePreferences() }
+
     }
 }

@@ -10,7 +10,7 @@ Across the whole app, use Notion, Obsidian, and Linear as references for quiet s
 
 Home has a native compact toolbar with no visible title and an icon-only add action. Its starting frame is 515 × 660 points; both dimensions are fixed and the home window is not resizable. Home contains Quick Connect, saved computers, and separately discovered Bonjour computers. Basic setup asks for name and address, with Advanced disclosure. Credentials are requested only when the server needs them and optionally saved in macOS Keychain.
 
-One native window per active computer. Compact title bar: centered computer name, display/sound/session icons, no persistent bottom status bar. Toolbar hides in fullscreen when configured. Keyboard shortcuts go to the remote computer while captured, with Control–Option–Escape to release and special-key actions in the session menu.
+One native window per active computer. Compact title bar: centered computer name, display/sound/session icons, no persistent bottom status bar. In fullscreen, controls hide completely and reveal only at the top center as a compact, dark notch with rounded bottom corners. Menus open beneath it; controls hide after the pointer leaves and menus close, without resizing the remote desktop. Keyboard shortcuts go to the remote computer while captured, with Control–Option–Escape to release and special-key actions in the session menu.
 
 ## Required behavior
 
