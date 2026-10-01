@@ -5,6 +5,17 @@ import PortalVNC
 @testable import Portal
 
 @MainActor final class SessionTests: XCTestCase {
+    func testContinuousUpdatesDeliverPixelsAfterCursorAndFollowResizeAndFallback() async throws {
+        let (server,address) = try peer("continuous")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { self.firstPixel(session) == [0,255,0,0] }
+        session.key(0x61,down:true); session.key(0x61,down:false)
+        try await until { session.image?.width == 6 && self.firstPixel(session) == [0,0,255,0] }
+        session.key(0x62,down:true); session.key(0x62,down:false)
+        try await until { self.firstPixel(session) == [255,255,0,0] }
+    }
     func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
         let (server,address) = try peer("key-count")
         defer { if server.isRunning { server.terminate() } }

@@ -20,7 +20,7 @@ struct PortalVNC {
     char *saslUser, *saslPassword;
     uint8_t fingerprint[32];
     int hasFingerprint;
-    int automaticQuality, frameCount, frameDirty;
+    int automaticQuality, frameCount, frameDirty, continuousSupported;
     uint64_t updates;
     double updateSeconds;
 };
@@ -48,13 +48,19 @@ static int fail(PortalVNC *p, const char *message) {
     p->fatal = 1; snprintf(p->error, sizeof(p->error), "%s", message); return 0;
 }
 static int valid_size(int w, int h) { return w > 0 && h > 0 && w <= 16384 && h <= 16384 && (uint64_t)w*h <= 33554432; }
+static rfbBool stream_updates(rfbClient *c) {
+    const uint8_t message[]={150,1,0,0,0,0,c->width>>8,c->width&255,c->height>>8,c->height&255};
+    if(!WriteToRFBServer(c,(const char *)message,sizeof(message))) return fail(owner(c),"Could not request continuous screen updates.");
+    c->portalContinuousUpdates=TRUE;
+    return TRUE;
+}
 static rfbBool allocate(rfbClient *c) {
     PortalVNC *p = owner(c);
     if (!valid_size(c->width,c->height)) return fail(p,"The remote desktop is too large or has invalid dimensions.");
     uint8_t *buffer = calloc((size_t)c->width*c->height,4);
     if (!buffer) return fail(p,"Not enough memory for the remote desktop.");
     free(c->frameBuffer); c->frameBuffer = buffer; p->frameDirty=1;
-    return TRUE;
+    return !c->portalContinuousUpdates || stream_updates(c);
 }
 static int authorize(PortalVNC *p) {
     if (p->authorized || p->tunneled || p->client->tlsSession || p->client->portalRead || p->client->saslconn) return 1;
@@ -143,6 +149,17 @@ static rfbBool encoding(rfbClient *c,rfbFramebufferUpdateRectHeader *rect) {
     return TRUE;
 }
 static rfbBool message(rfbClient *c,rfbServerToClientMsg *msg) {
+    if(msg->type==150) {
+        PortalVNC *p=owner(c);
+        if(!p->continuousSupported) {
+            p->continuousSupported=1;
+            stream_updates(c);
+        } else {
+            c->portalContinuousUpdates=FALSE;
+            if(!SendIncrementalFramebufferUpdateRequest(c)) fail(p,"Could not resume screen updates.");
+        }
+        return TRUE;
+    }
     if(msg->type!=255) return FALSE;
     PortalVNC *p=owner(c); uint8_t head[3];
     if(!ReadFromRFBServer(c,(char*)head,3) || head[0]!=1) { fail(p,"Invalid audio message."); return TRUE; }
@@ -161,7 +178,7 @@ static rfbBool rsa_auth(rfbClient *c,uint32_t scheme) {
     PortalVNC *p=owner(c); return portal_rsa_auth(c,scheme,p->cb,p->error,sizeof(p->error));
 }
 static const uint32_t securityTypes[]={129,5,130,6,0};
-static int encodings[]={-259,rfbEncodingExtDesktopSize,0};
+static int encodings[]={-259,rfbEncodingExtDesktopSize,-313,0};
 static rfbClientProtocolExtension extension={.encodings=encodings,.handleEncoding=encoding,.handleMessage=message,.securityTypes=securityTypes,.handleAuthentication=rsa_auth};
 static pthread_once_t registration=PTHREAD_ONCE_INIT;
 static OSSL_PROVIDER *defaultProvider;

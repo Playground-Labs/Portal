@@ -22,6 +22,10 @@ def connection(listener, color):
     peer.sendall(b'\0'*4); take(1)
     fmt=struct.pack('!BBBBHHHBBBxxx',32,24,0,1,255,255,255,0,8,16)
     peer.sendall(struct.pack('!HH',4,2)+fmt+struct.pack('!I',4)+b'Test')
+    continuous=False
+    announced=False
+    stopped=False
+    resized=False
     sent=False
     key_downs=key_ups=0
     try:
@@ -31,8 +35,16 @@ def connection(listener, color):
             elif kind==2:
                 _,n=struct.unpack('!BH',take(3)); encodings=struct.unpack('!'+str(n)+'i',take(n*4))
                 if mode=='cursor': assert -239 in encodings
+                if mode=='continuous' and -313 in encodings and not announced:
+                    announced=True
+                    peer.sendall(bytes([150]))
             elif kind==3:
-                take(9)
+                request=take(9)
+                if mode=='continuous' and continuous and request[0]:
+                    raise AssertionError('Incremental requests must stop while streaming')
+                if mode=='continuous' and stopped:
+                    peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,6,2,0)+bytes([255,255,0,0])*12)
+                    stopped=False
                 if not sent and mode != 'idle':
                     time.sleep(0.25)
                     header=struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)
@@ -55,8 +67,23 @@ def connection(listener, color):
                     sent=True
                     if mode=='reconnect' and color[0]==255:
                         time.sleep(0.3); break
+            elif kind==150:
+                enabled,x,y,w,h=struct.unpack('!BHHHH',take(9))
+                assert mode=='continuous' and announced and enabled==1 and (x,y)==(0,0)
+                assert (w,h)==((6,2) if resized else (4,2))
+                continuous=True
+                if not resized: peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,0,0,-239))
+                pixel=[0,0,255,0] if resized else [0,255,0,0]
+                peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,w,h,0)+bytes(pixel)*w*h)
             elif kind==4:
                 key = take(7)
+                if mode=='continuous' and key[0]:
+                    if not resized:
+                        resized=True
+                        peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,6,2,-308)+bytes([1,0,0,0])+struct.pack('!IHHHHI',1,0,0,6,2,0))
+                    else:
+                        continuous=False; stopped=True
+                        peer.sendall(bytes([150]))
                 if mode=='key-count':
                     if key[0]: key_downs+=1
                     else: key_ups+=1

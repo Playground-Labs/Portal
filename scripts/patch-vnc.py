@@ -181,3 +181,15 @@ s = s.replace(anchor, anchor + """
   if (client->portalPumpInput) client->portalPumpInput(client);
 """)
 sockets.write_text(s)
+
+# Continuous updates replace incremental polling after explicit server support.
+s = header.read_text()
+anchor = '  void (*portalPumpInput)(struct _rfbClient *);'
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + '\n  rfbBool portalContinuousUpdates;')
+header.write_text(s)
+s = path.read_text()
+anchor = 'SendIncrementalFramebufferUpdateRequest(rfbClient* client)\n{'
+assert s.count(anchor) == 1
+s = s.replace(anchor, anchor + '\n    if (client->portalContinuousUpdates) return TRUE;')
+path.write_text(s)
