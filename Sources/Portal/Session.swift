@@ -185,14 +185,16 @@ final class Session: ObservableObject {
     }
     private func cleanup() { if let client { portal_vnc_destroy(client); self.client = nil }; tunnel?.stop(); tunnel = nil }
     private func failed(_ message: String, retry: Bool) {
+        let wasConnected = connected
+        _ = advance(); resizeWork?.cancel(); image = nil; remoteCursor = nil
         connected = false; captured = false; timer?.invalidate(); audio.stop(); error = message.trimmingCharacters(in: .whitespacesAndNewlines)
         if retry && UserDefaults.standard.object(forKey: "autoReconnect") as? Bool != false {
             retryCount += 1; let delay = min(30, pow(2, Double(min(retryCount,5))))
             retrying = true; status = "Reconnecting in \(Int(delay)) seconds"; let token = generation
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in guard let self, self.isCurrent(token), self.retrying else { return }; self.start() }
-        } else { retrying = false; status = cancelledPrompt ? "Connection cancelled" : "Couldn’t connect" }
+        } else { retrying = false; status = cancelledPrompt ? "Connection cancelled" : (wasConnected ? "Connection lost" : "Couldn’t connect") }
     }
-    func stop() { _ = advance(); resizeWork?.cancel(); timer?.invalidate(); connected = false; captured = false; retrying = false; status = "Disconnected"; audio.stop(); queue.async { [self] in cleanup() } }
+    func stop() { _ = advance(); resizeWork?.cancel(); timer?.invalidate(); image = nil; remoteCursor = nil; connected = false; captured = false; retrying = false; status = "Disconnected"; audio.stop(); queue.async { [self] in cleanup() } }
     func send(_ action: @escaping (OpaquePointer) -> Void) { let token = generation; queue.async { [self] in if isCurrent(token), let client { action(client) } } }
     func sendInput(_ action: @escaping (OpaquePointer) -> Void) {
         let token = generation

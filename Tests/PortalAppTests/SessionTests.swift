@@ -53,6 +53,35 @@ import PortalVNC
         }
         try await until { self.firstPixel(session) == [0,255,0,0] }
     }
+    func testConnectionLossClearsStaleScreenAndReportsAnEstablishedSessionDrop() async throws {
+        let old = UserDefaults.standard.object(forKey:"autoReconnect")
+        UserDefaults.standard.set(false,forKey:"autoReconnect")
+        defer { if let old { UserDefaults.standard.set(old,forKey:"autoReconnect") } else { UserDefaults.standard.removeObject(forKey:"autoReconnect") } }
+        let (server,address) = try peer("disconnect")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil && session.connected }
+        try await until { !session.connected }
+        XCTAssertNil(session.image,"A disconnected desktop must not look live behind an error")
+        XCTAssertEqual(session.status,"Connection lost")
+    }
+    func testLatePreparedFrameCannotReappearAfterConnectionLoss() async throws {
+        let (server,address) = try peer("disconnect")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer)
+        session.frameQueue.suspend()
+        session.start()
+        defer { session.stop() }
+        try await until { session.connected }
+        try await until { !session.connected }
+        session.frameQueue.resume()
+        let drained = expectation(description:"In-flight preparation finishes")
+        session.frameQueue.async { DispatchQueue.main.async { drained.fulfill() } }
+        await fulfillment(of:[drained],timeout:1)
+        XCTAssertNil(session.image,"A frame queued before the failure must not replace the disconnected state")
+    }
     func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
         let (server,address) = try peer("key-count")
         defer { if server.isRunning { server.terminate() } }

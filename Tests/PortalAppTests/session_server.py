@@ -66,7 +66,7 @@ def connection(listener, color):
                         cursor=struct.pack('!BBHHHHHi',0,0,1,1,0,2,1,-239)
                         peer.sendall(cursor+bytes([255,0,0,0,0,255,0,0])+b'\x80')
                     sent=True
-                    if mode=='reconnect' and color[0]==255:
+                    if mode in ('reconnect','disconnect') and color[0]==255:
                         time.sleep(0.3); break
             elif kind==150:
                 enabled,x,y,w,h=struct.unpack('!BHHHH',take(9))
