@@ -37,6 +37,22 @@ import PortalVNC
         await fulfillment(of:[drained],timeout:1)
         XCTAssertNil(session.image)
     }
+    func testCommandModifierSurvivesEventsWithoutDeviceSpecificFlags() async throws {
+        let (server,address) = try peer("canvas-input")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        let canvas = DesktopCanvas(session:session)
+        let window = CursorTestWindow(contentRect:NSRect(x:0,y:0,width:100,height:100),styleMask:.borderless,backing:.buffered,defer:false)
+        window.contentView = canvas; window.makeFirstResponder(canvas); session.captured = true
+        defer { canvas.releaseInput(); withExtendedLifetime(window) {} }
+        for (type,flags,code,text) in [(NSEvent.EventType.flagsChanged,NSEvent.ModifierFlags.command,UInt16(55),""),(.keyDown,.command,9,"v"),(.keyUp,.command,9,"v"),(.flagsChanged,[],55,"")] {
+            let event = try XCTUnwrap(NSEvent.keyEvent(with:type,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:code))
+            XCTAssertTrue(canvas.handleKeyboardEvent(event))
+        }
+        try await until { self.firstPixel(session) == [0,255,0,0] }
+    }
     func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
         let (server,address) = try peer("key-count")
         defer { if server.isRunning { server.terminate() } }

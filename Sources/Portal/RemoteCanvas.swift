@@ -42,7 +42,12 @@ final class DesktopCanvas: NSView {
     private var lastPoint = (0,0)
     private var capsLock = false
     // Device masks from IOKit/hidsystem/IOLLEvent.h distinguish left and right keys.
-    private let modifierKeys: [(UInt16,UInt,UInt32)] = [(56,0x2,0xffe1),(60,0x4,0xffe2),(59,0x1,0xffe3),(62,0x2000,0xffe4),(58,0x20,0xffe9),(61,0x40,0xffea),(55,0x8,0xffeb),(54,0x10,0xffec)]
+    private let modifierKeys: [(NSEvent.ModifierFlags,[(UInt16,UInt,UInt32)])] = [
+        (.shift,[(56,0x2,0xffe1),(60,0x4,0xffe2)]),
+        (.control,[(59,0x1,0xffe3),(62,0x2000,0xffe4)]),
+        (.option,[(58,0x20,0xffe9),(61,0x40,0xffea)]),
+        (.command,[(55,0x8,0xffeb),(54,0x10,0xffec)])
+    ]
     private var tracking: NSTrackingArea?
     private static let hiddenCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
     private var usesRemoteCursor: Bool { session.connected && !session.computer.viewOnly && window?.isKeyWindow == true }
@@ -65,11 +70,7 @@ final class DesktopCanvas: NSView {
         frameObservation = session.frames.sink { [weak self] in self?.refreshImage() }
         setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel("Remote desktop. Click to control. Press Control Option Escape to release the keyboard.")
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown,.keyUp,.flagsChanged]) { [weak self] event in
-            guard let self, event.window == self.window, self.session.captured, self.window?.firstResponder === self else { return event }
-            if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.contains([.control,.option]) { self.releaseInput(); return nil }
-            if event.type == .flagsChanged { self.modifiers(event) }
-            else { self.keyboard(event, down: event.type == .keyDown) }
-            return nil
+            self?.handleKeyboardEvent(event) == true ? nil : event
         }
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] note in
             guard let self, note.object as? NSWindow === self.window else { return }; self.releaseInput()
@@ -136,6 +137,13 @@ final class DesktopCanvas: NSView {
         guard abs(delta)>0 else { return }; let mask = vertical ? (delta>0 ? 8 : 16) : (delta>0 ? 32 : 64)
         session.pointer(x:x,y:y,buttons:buttons|mask); session.pointer(x:x,y:y,buttons:buttons)
     }
+    @discardableResult func handleKeyboardEvent(_ event: NSEvent) -> Bool {
+        guard (event.window == window || (event.window == nil && window?.isKeyWindow == true)), session.captured, window?.firstResponder === self else { return false }
+        if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.contains([.control,.option]) { releaseInput(); return true }
+        modifiers(event)
+        if event.type != .flagsChanged { keyboard(event,down:event.type == .keyDown) }
+        return true
+    }
     private func keyboard(_ event: NSEvent,down: Bool) {
         if !down { if let key = held.removeValue(forKey:event.keyCode) { session.key(key,down:false) }; return }
         let special: [UInt16:UInt32] = [36:0xff0d,48:0xff09,49:0x20,51:0xff08,53:0xff1b,117:0xffff,123:0xff51,124:0xff53,125:0xff54,126:0xff52,115:0xff50,119:0xff57,116:0xff55,121:0xff56,122:0xffbe,120:0xffbf,99:0xffc0,118:0xffc1,96:0xffc2,97:0xffc3,98:0xffc4,100:0xffc5,101:0xffc6,109:0xffc7,103:0xffc8,111:0xffc9,76:0xff8d]
@@ -156,11 +164,16 @@ final class DesktopCanvas: NSView {
             let state = event.modifierFlags.contains(.capsLock)
             if state != capsLock { session.special([0xffe5]); capsLock = state }
         }
-        for (code,mask,key) in modifierKeys {
-            let down = event.modifierFlags.rawValue & mask != 0
-            guard down != (held[code] != nil) else { continue }
-            if down { held[code] = key } else { held.removeValue(forKey:code) }
-            session.key(key,down:down)
+        for (flag,keys) in modifierKeys {
+            let deviceFlags = event.modifierFlags.rawValue & keys.reduce(0) { $0 | $1.1 }
+            let fallback = event.type == .flagsChanged && keys.contains(where:{ $0.0 == event.keyCode })
+                ? event.keyCode : (keys.first(where:{ held[$0.0] != nil })?.0 ?? keys[0].0)
+            for (code,mask,key) in keys {
+                let down = deviceFlags != 0 ? deviceFlags & mask != 0 : event.modifierFlags.contains(flag) && code == fallback
+                guard down != (held[code] != nil) else { continue }
+                if down { held[code] = key } else { held.removeValue(forKey:code) }
+                session.key(key,down:down)
+            }
         }
     }
 }

@@ -28,6 +28,7 @@ def connection(listener, color):
     resized=False
     sent=False
     key_downs=key_ups=0
+    input_events=[]
     try:
         while True:
             kind=take(1)[0]
@@ -77,6 +78,13 @@ def connection(listener, color):
                 peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,w,h,0)+bytes(pixel)*w*h)
             elif kind==4:
                 key = take(7)
+                if mode=='canvas-input':
+                    input_events.append((key[0],int.from_bytes(key[3:],'big')))
+                    expected=[(1,0xffeb),(1,ord('v')),(0,ord('v')),(0,0xffeb)]
+                    if len(input_events)==4:
+                        pixel=[0,255,0,0] if input_events==expected else [0,0,255,0]
+                        peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)+bytes(pixel)*8)
+
                 if mode=='continuous' and key[0]:
                     if not resized:
                         resized=True
