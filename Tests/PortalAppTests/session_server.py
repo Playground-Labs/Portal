@@ -60,6 +60,14 @@ def connection(listener, color):
                         peer.settimeout(15)
                         peer.sendall(header[4:]+bytes(color)*8)
                     else: peer.sendall(header+bytes(color)*8)
+                    if mode in ('fragment-stress','fragment-stress-large','stalled-read'):
+                        size=16384 if mode=='fragment-stress-large' else 2048
+                        peer.sendall(bytes([3,0,0,0])+struct.pack('!I',size))
+                        if mode=='stalled-read':
+                            peer.sendall(b'x'); time.sleep(10); break
+                        for _ in range(128):
+                            peer.sendall(b'x'*(size//128)); time.sleep(0.004)
+                        peer.sendall(header+bytes([0,255,0,0])*8)
                     if mode=='burst':
                         peer.sendall(header+bytes([0,255,0,0])*8)
                     if mode=='cursor':

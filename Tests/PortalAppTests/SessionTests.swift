@@ -82,6 +82,27 @@ import PortalVNC
         await fulfillment(of:[drained],timeout:1)
         XCTAssertNil(session.image,"A frame queued before the failure must not replace the disconnected state")
     }
+    func testFragmentedMessageDoesNotExhaustTimeoutWhileDataKeepsArriving() async throws {
+        for mode in ["fragment-stress","fragment-stress-large"] {
+            let (server,address) = try peer(mode)
+            defer { if server.isRunning { server.terminate() } }
+            var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address; computer.clipboard = .off
+            let session = Session(computer); session.start(); defer { session.stop() }
+            try await until { self.firstPixel(session) == [0,255,0,0] }
+            XCTAssertTrue(session.connected)
+        }
+    }
+    func testStalledReadStillTimesOutAfterEightSeconds() async throws {
+        let (server,address) = try peer("stalled-read")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address; computer.clipboard = .off
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        let start = Date()
+        try await until(timeout:10) { !session.connected }
+        XCTAssertGreaterThan(Date().timeIntervalSince(start),7.5)
+        XCTAssertFalse(session.error.isEmpty)
+    }
     func testTwoEnterTapsProduceExactlyTwoPressReleasePairs() async throws {
         let (server,address) = try peer("key-count")
         defer { if server.isRunning { server.terminate() } }

@@ -193,3 +193,22 @@ anchor = 'SendIncrementalFramebufferUpdateRequest(rfbClient* client)\n{'
 assert s.count(anchor) == 1
 s = s.replace(anchor, anchor + '\n    if (client->portalContinuousUpdates) return TRUE;')
 path.write_text(s)
+
+# Count elapsed time, not EAGAIN occurrences: ready sockets can wake immediately.
+s = sockets.read_text()
+s = s.replace('#include <errno.h>', '#include <errno.h>\n#include <time.h>', 1)
+anchor = 'static int PortalWaitForSocket(rfbClient *, unsigned int);'
+assert s.count(anchor) == 1
+s = s.replace(anchor, '''static double PortalMonotonicSeconds(void) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return now.tv_sec + now.tv_nsec / 1e9;
+}
+''' + anchor)
+anchor = '  int retries = 0;'
+assert s.count(anchor) == 1
+s = s.replace(anchor, '  const double readStarted = PortalMonotonicSeconds();')
+anchor = '++retries > (client->readTimeout * 1000 * 1000 / USECS_WAIT_PER_RETRY)'
+assert s.count(anchor) == 2
+s = s.replace(anchor, 'PortalMonotonicSeconds() - readStarted >= client->readTimeout')
+sockets.write_text(s)
