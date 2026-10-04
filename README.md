@@ -16,6 +16,25 @@ open dist/Portal.app
 
 The build downloads a checksum-pinned LibVNCClient revision, applies the reviewed compatibility hooks in `scripts/patch-vnc.py`, and bundles its dynamic dependencies into `dist/Portal.app`. The app is locally ad-hoc signed. Public distribution requires a developer signature, notarization, and a release with corresponding source and dependency notices; no public release has been published.
 
+## Signing and notarization
+
+Install your Apple Developer team's **Developer ID Application** certificate and private key in macOS Keychain. Then build with its full certificate name:
+
+```sh
+PORTAL_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/build-app.sh
+```
+
+Distribution signing enables hardened runtime and secure timestamps for Portal and its bundled libraries. Without this environment variable, builds remain locally ad-hoc signed.
+
+Store notarization credentials interactively in Keychain (never in the repository or shell command arguments), then submit the signed build:
+
+```sh
+xcrun notarytool store-credentials portal-notary
+./scripts/notarize-app.sh portal-notary
+```
+
+The notarization script uploads the app to Apple, requires an Accepted result, staples and validates the ticket, checks Gatekeeper, and produces `dist/Portal-macOS.zip` plus its SHA-256 checksum. It does not publish a GitHub release. If interrupted, inspect `dist/notarization-result.json` and check the existing submission before uploading again.
+
 ## Connect
 
 Enable a VNC server on your remote computer, then enter its hostname or IP address in Quick Connect. Use `host:5901` for a custom port or `[2001:db8::1]:5900` for IPv6. `vnc://` links are accepted. Portal does not install a server, open firewall ports, or provide an internet relay.

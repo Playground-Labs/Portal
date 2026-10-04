@@ -1,6 +1,9 @@
-"""Bundle the executable and its non-system dynamic libraries for local use."""
-import pathlib, subprocess, shutil, plistlib, sys, re
+"""Bundle Portal; optionally sign for distribution with PORTAL_SIGNING_IDENTITY."""
+import pathlib, subprocess, shutil, plistlib, sys, re, os
 root = pathlib.Path(__file__).resolve().parent.parent
+identity = os.environ.get('PORTAL_SIGNING_IDENTITY', '-')
+if identity != '-' and not identity.startswith('Developer ID Application:'):
+    raise SystemExit('Use the full Developer ID Application certificate name for distribution.')
 app = root / 'dist' / 'Portal.app'
 if app.exists(): shutil.rmtree(app)
 contents = app / 'Contents'
@@ -83,6 +86,9 @@ for path in re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.*?) \(offset',comma
     if path.startswith('/') and not path.startswith('/usr/lib/'):
         subprocess.run(['install_name_tool','-delete_rpath',path,str(executable)],check=True)
 subprocess.run(['install_name_tool','-add_rpath','@executable_path/../Frameworks',str(executable)],check=True)
-for library in (contents/'Frameworks').iterdir(): subprocess.run(['codesign','--force','--sign','-',str(library)],check=True)
-subprocess.run(['codesign','--force','--deep','--sign','-',str(app)],check=True)
+sign = ['codesign','--force','--sign',identity]
+if identity != '-': sign += ['--options','runtime','--timestamp']
+for library in (contents/'Frameworks').iterdir(): subprocess.run(sign+[str(library)],check=True)
+subprocess.run(sign+[str(app)],check=True)
+subprocess.run(['codesign','--verify','--deep','--strict',str(app)],check=True)
 print(app)
