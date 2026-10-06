@@ -51,13 +51,14 @@ final class DesktopCanvas: NSView {
     private var tracking: NSTrackingArea?
     private static let hiddenCursor = NSCursor(image:NSImage(size:NSSize(width:16,height:16),flipped:false) { _ in true },hotSpot:.zero)
     private var usesRemoteCursor: Bool { session.connected && !session.computer.viewOnly && window?.isKeyWindow == true }
+    private var desktopCursor: NSCursor { session.computer.useLocalCursor ? .arrow : (session.remoteCursor ?? Self.hiddenCursor) }
     override func cursorUpdate(with event: NSEvent) {
-        (usesRemoteCursor && point(event) != nil ? (session.remoteCursor ?? Self.hiddenCursor) : NSCursor.arrow).set()
+        (usesRemoteCursor && point(event) != nil ? desktopCursor : NSCursor.arrow).set()
     }
     override func resetCursorRects() {
         super.resetCursorRects()
         if usesRemoteCursor {
-            addCursorRect(destinationRect.intersection(visibleRect),cursor:session.remoteCursor ?? Self.hiddenCursor)
+            addCursorRect(destinationRect.intersection(visibleRect),cursor:desktopCursor)
         }
     }
     override var isFlipped: Bool { true }

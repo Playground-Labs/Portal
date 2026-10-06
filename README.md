@@ -45,6 +45,8 @@ Click the remote screen to send keyboard shortcuts to it. **Control + Option + E
 
 ## Compatibility
 
+For Wayland hosts where the pointer slows during window-focus changes, **Display → Use local cursor** draws an arrow on your Mac independently of screen updates. Disable the server's cursor overlay first (for WayVNC, remove `--render-cursor`) to avoid duplicate pointers. This optional mode uses a fixed arrow, rather than remote cursor shapes, and is saved per computer. It is off by default.
+
 - Automatically negotiates RSA-AES (RA2 / RA2-256 and authentication-only variants), TLS/VeNCrypt, SASL, VNC password, Apple ARD, UltraVNC MSLogonII, or no authentication. Full-session encryption is preferred when offered. RSA-AES supports WayVNC without changing its server configuration. New or changed RSA keys require an explicit trust decision; trusted keys are remembered separately from TLS certificates.
 - Protocol tests cover RSA-AES, TLS username/password, SASL PLAIN over TLS, Apple ARD, UltraVNC MSLogonII, legacy RFB 3.3 password authentication, and ordinary RFB 3.8 connections. This is not a claim of compatibility with every server version, SASL mechanism, or proprietary cloud service. RealVNC cloud/account connections and Apple High Performance Screen Sharing are outside standard VNC support.
 - Remote resizing uses ExtendedDesktopSize when a server advertises a single display. Otherwise Portal scales the desktop to fit. Multi-monitor layouts are preserved; individual monitor selection is available when the server reports their geometry. Actual-size mode provides scrolling.
