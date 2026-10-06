@@ -154,3 +154,12 @@ After the user reported the disconnect persisted, a local transport stress test 
 Both buffered and direct socket-read paths now measure CLOCK_MONOTONIC elapsed time against the existing read timeout. No timeout increase, encryption change, or input-pumping change was made. The native build cache version advances to v12 so the patched transport is included in packaged apps.
 
 Validation: the fragmented-message test failed before the patch and passes afterward for 2 KiB and 16 KiB payloads, covering both read paths. A separate stalled-message test confirms the connection still closes after approximately eight seconds (8.33 seconds including setup). All 40 tests and release packaging pass. The actual host stayed connected during observation; this is a reproduced premature-timeout bug, not proof that every reported host disconnect has this cause. No app restart was performed.
+
+
+## Window-crossing cursor and focus latency — 2026-10-06
+
+The user reproduced the same slowdown in Portal and TigerVNC. The WayVNC host embedded its cursor into framebuffer updates with `--render-cursor`. Testing without that flag and with TigerVNC's explicit local-cursor fallback made the pointer visible and smooth while keeping the original focus behavior and 60 FPS setting. Portal now offers a saved, default-off **Use local cursor** option in connection and session display settings. It draws a fixed local arrow; server overlays must be disabled to prevent duplicate pointers.
+
+The regression test failed before implementation and passes afterward, covering persisted local-cursor mode, keyboard release, and older saved-computer defaults. All 41 tests and release packaging pass. Separate spec and standards reviews found no actionable issues.
+
+With the user's explicit approval, the host overlay flag was removed and Portal's local-cursor option enabled for the saved connection. The user confirmed the cursor no longer slowed, but focus changes still did. Equal active/inactive opacity and disabling only the border animation then made focus feel prompt; the user approved saving these host settings permanently. Host configuration validation reported no errors. Other animations, focus-follows-mouse, and the original hardware-cursor mode remain enabled/as configured. Original service and appearance files were backed up. Temporary test server and SSH tunnel were stopped.
