@@ -23,6 +23,11 @@ public struct Computer: Identifiable, Codable, Equatable, Sendable {
     public var quality = ImageQuality.automatic
     public var clipboard = ClipboardMode.bidirectional
     public var viewOnly = false
+    private var localCursor: Bool?
+    public var useLocalCursor: Bool {
+        get { localCursor ?? false }
+        set { localCursor = newValue ? true : nil }
+    }
     public var audioEnabled = true
     public var volume: Float = 0.7
     public var lastUsed: Date?

@@ -173,6 +173,29 @@ import PortalVNC
         for _ in 0..<50 { XCTAssertEqual(portal_vnc_poll(client),0) }
         XCTAssertLessThan(Date().timeIntervalSince(start),0.1,"Idle reads must not hold the input queue")
     }
+    func testSavedLocalCursorStaysVisibleWhenServerSuppliesNoCursor() throws {
+        let original = Computer(name:"Test",address:"127.0.0.1")
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with:JSONEncoder().encode(original)) as? [String:Any])
+        document["localCursor"] = true
+        let saved = try JSONDecoder().decode(Computer.self,from:JSONSerialization.data(withJSONObject:document))
+        let restored = try JSONDecoder().decode(Computer.self,from:JSONEncoder().encode(saved))
+        let session = Session(restored)
+        let canvas = DesktopCanvas(session:session)
+        let window = CursorTestWindow(contentRect:NSRect(x:0,y:0,width:100,height:100),styleMask:.borderless,backing:.buffered,defer:false)
+        window.contentView = canvas
+        session.connected = true
+        let event = try XCTUnwrap(NSEvent.mouseEvent(with:.mouseMoved,location:NSPoint(x:50,y:50),modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:0,pressure:0))
+        defer { NSCursor.arrow.set() }
+        canvas.cursorUpdate(with:event)
+        XCTAssertTrue(NSCursor.current === NSCursor.arrow,"Saved local cursor mode must provide a visible arrow independent of remote screen updates")
+        session.captured = true
+        canvas.releaseInput()
+        canvas.cursorUpdate(with:event)
+        XCTAssertTrue(NSCursor.current === NSCursor.arrow,"Releasing keyboard capture must not hide the selected local cursor")
+        session.computer = try JSONDecoder().decode(Computer.self,from:JSONEncoder().encode(original))
+        canvas.cursorUpdate(with:event)
+        XCTAssertFalse(NSCursor.current === NSCursor.arrow,"Computers saved without the option must retain the existing cursor behavior")
+    }
     func testRemoteCursorRemainsHiddenAfterKeyboardRelease() throws {
         let session = Session(Computer(name:"Test",address:"127.0.0.1"))
         let canvas = DesktopCanvas(session:session)

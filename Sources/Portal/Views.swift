@@ -215,6 +215,8 @@ struct ConnectionEditor: View {
                             PortalChoice("Image quality",selection:$computer.quality,options:ImageQuality.choices)
                             PortalChoice("Clipboard",selection:$computer.clipboard,options:ClipboardMode.choices)
                             Toggle("View only",isOn:$computer.viewOnly)
+                            Toggle("Use local cursor",isOn:$computer.useLocalCursor)
+                            Text("Draw a local arrow. Turn off cursor overlay on the server to avoid two pointers.").font(.portal(size:11)).foregroundStyle(.secondary)
                             Toggle("Play remote audio when available",isOn:$computer.audioEnabled)
                         }.padding(.top,16).padding(.trailing,4)
                     }

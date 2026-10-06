@@ -45,6 +45,7 @@ struct SessionView: View {
             .onChange(of:session.computer.quality) { _,_ in session.updatePreferences() }
             .onChange(of:session.computer.clipboard) { _,_ in session.updatePreferences() }
             .onChange(of:session.computer.viewOnly) { _,_ in session.updatePreferences() }
+            .onChange(of:session.computer.useLocalCursor) { _,_ in session.updatePreferences() }
             .onChange(of:session.captured) { _,captured in
                 hintWork?.cancel(); showHint = captured
                 if captured { let work = DispatchWorkItem { showHint = false }; hintWork = work; DispatchQueue.main.asyncAfter(deadline:.now()+4,execute:work) }
@@ -127,6 +128,8 @@ struct SessionView: View {
         Text("Display").font(.portal(size:14,weight:.semibold))
         PortalChoice("Sizing",selection:$session.computer.sizing,options:DisplaySizing.choices)
         PortalChoice("Image quality",selection:$session.computer.quality,options:ImageQuality.choices)
+        Toggle("Use local cursor",isOn:$session.computer.useLocalCursor)
+        Text("Draw a local arrow. Turn off cursor overlay on the server to avoid two pointers.").font(.portal(size:11)).foregroundStyle(.secondary)
         Divider()
         PortalAction("All displays",selected:session.selectedScreen == nil) { session.selectedScreen = nil }
         ForEach(Array(session.screens.enumerated()),id:\.element.id) { index, screen in
