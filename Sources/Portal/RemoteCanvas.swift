@@ -36,6 +36,9 @@ final class DesktopCanvas: NSView {
     private let desktopLayer = CALayer()
     private var frameObservation: AnyCancellable?
     private var monitor: Any?
+    private var keyboardTap: CFMachPort?
+    private var keyboardSource: CFRunLoopSource?
+    private var captureObservation: AnyCancellable?
     private var observers: [NSObjectProtocol] = []
     private var held: [UInt16: UInt32] = [:]
     private var buttons = 0
@@ -73,12 +76,17 @@ final class DesktopCanvas: NSView {
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown,.keyUp,.flagsChanged]) { [weak self] event in
             self?.handleKeyboardEvent(event) == true ? nil : event
         }
+        captureObservation = session.$captured.sink { [weak self] captured in
+            if !captured { self?.stopSystemKeyboardCapture() }
+        }
+        observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object:nil, queue:.main) { [weak self] _ in self?.releaseInput() })
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] note in
             guard let self, note.object as? NSWindow === self.window else { return }; self.releaseInput()
         })
     }
     required init?(coder: NSCoder) { fatalError("Use init(session:)") }
-    deinit { if let monitor { NSEvent.removeMonitor(monitor) }; observers.forEach(NotificationCenter.default.removeObserver) }
+    deinit { stopSystemKeyboardCapture(); if let monitor { NSEvent.removeMonitor(monitor) }; observers.forEach(NotificationCenter.default.removeObserver) }
+    override func viewWillMove(toWindow newWindow: NSWindow?) { if newWindow !== window { releaseInput() }; super.viewWillMove(toWindow:newWindow) }
     override func resignFirstResponder() -> Bool { releaseInput(); return super.resignFirstResponder() }
     var sourceRect: CGRect {
         if let id = session.selectedScreen, let screen = session.screens.first(where: { $0.id == id }) { return CGRect(x: Int(screen.x),y: Int(screen.y),width: Int(screen.width),height: Int(screen.height)) }
@@ -109,6 +117,7 @@ final class DesktopCanvas: NSView {
         tracking = NSTrackingArea(rect: .zero,options:[.mouseMoved,.cursorUpdate,.activeInKeyWindow,.inVisibleRect],owner:self,userInfo:nil); addTrackingArea(tracking!)
     }
     func releaseInput() {
+        stopSystemKeyboardCapture()
         guard session.captured || !held.isEmpty || buttons != 0 else { return }
         for key in held.values { session.sendInput { _ = portal_vnc_key($0,key,0) } }; held.removeAll()
         if buttons != 0 { let (x,y) = lastPoint; session.sendInput { _ = portal_vnc_pointer($0,Int32(x),Int32(y),0) }; buttons = 0 }
@@ -123,7 +132,7 @@ final class DesktopCanvas: NSView {
     private func pointer(_ event: NSEvent) { cursorUpdate(with:event); guard let position = point(event) else { if buttons == 0 { session.pointer(x:lastPoint.0,y:lastPoint.1,buttons:0) }; return }; lastPoint = position; session.pointer(x:position.0,y:position.1,buttons:buttons) }
     override func mouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 1; pointer(event) }
     override func mouseUp(with event: NSEvent) { buttons &= ~1; pointer(event) }
-    override func rightMouseDown(with event: NSEvent) { guard !session.computer.viewOnly else { return }; capture(event); buttons |= 4; pointer(event) }
+    override func rightMouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 4; pointer(event) }
     override func rightMouseUp(with event: NSEvent) { buttons &= ~4; pointer(event) }
     override func otherMouseDown(with event: NSEvent) { guard session.connected, !session.computer.viewOnly, point(event) != nil else { return }; capture(event); buttons |= 2; pointer(event) }
     override func otherMouseUp(with event: NSEvent) { buttons &= ~2; pointer(event) }
@@ -139,11 +148,53 @@ final class DesktopCanvas: NSView {
         session.pointer(x:x,y:y,buttons:buttons|mask); session.pointer(x:x,y:y,buttons:buttons)
     }
     @discardableResult func handleKeyboardEvent(_ event: NSEvent) -> Bool {
-        guard (event.window == window || (event.window == nil && window?.isKeyWindow == true)), session.captured, window?.firstResponder === self else { return false }
+        guard (event.window == window || (event.window == nil && window?.isKeyWindow == true)), session.connected, !session.computer.viewOnly, session.captured, window?.isKeyWindow == true, window?.firstResponder === self else { return false }
+        return routeKeyboardEvent(event)
+    }
+    private func routeKeyboardEvent(_ event:NSEvent) -> Bool {
         if event.type == .keyDown, event.keyCode == 53, event.modifierFlags.contains([.control,.option]) { releaseInput(); return true }
         modifiers(event)
         if event.type != .flagsChanged { keyboard(event,down:event.type == .keyDown) }
         return true
+    }
+    // A local NSEvent monitor runs after macOS has claimed shortcuts such as Command-Space.
+    private func startSystemKeyboardCapture() {
+        guard keyboardTap == nil else { return }
+        guard AXIsProcessTrusted() else {
+            session.keyboardCaptureError = "Allow Portal in Accessibility to send Mac system shortcuts to the remote computer."
+            return
+        }
+        let mask = [CGEventType.keyDown,.keyUp,.flagsChanged].reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
+        guard let tap = CGEvent.tapCreate(tap:.cgSessionEventTap,place:.headInsertEventTap,options:.defaultTap,eventsOfInterest:mask,callback:{ _,type,event,info in
+            guard let info else { return Unmanaged.passUnretained(event) }
+            let canvas = Unmanaged<DesktopCanvas>.fromOpaque(info).takeUnretainedValue()
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                canvas.releaseInput()
+                canvas.session.keyboardCaptureError = "Keyboard capture stopped. Click the remote desktop to resume."
+                return Unmanaged.passUnretained(event)
+            }
+            return canvas.handleSystemKeyboardEvent(type:type,event:event) ? nil : Unmanaged.passUnretained(event)
+        },userInfo:Unmanaged.passUnretained(self).toOpaque()),
+              let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault,tap,0) else {
+            session.keyboardCaptureError = "Keyboard capture is unavailable. Check Portal’s Accessibility permission, then click the remote desktop again."
+            return
+        }
+        keyboardTap = tap; keyboardSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(),source,.commonModes)
+        session.keyboardCaptureError = ""
+    }
+    private func stopSystemKeyboardCapture() {
+        if let tap = keyboardTap { CGEvent.tapEnable(tap:tap,enable:false); CFMachPortInvalidate(tap) }
+        if let source = keyboardSource { CFRunLoopRemoveSource(CFRunLoopGetMain(),source,.commonModes) }
+        keyboardTap = nil; keyboardSource = nil
+    }
+    @discardableResult func handleSystemKeyboardEvent(type:CGEventType,event:CGEvent) -> Bool {
+        guard type == .keyDown || type == .keyUp || type == .flagsChanged,
+              session.connected, !session.computer.viewOnly, session.captured,
+              window?.isKeyWindow == true, window?.firstResponder === self,
+              let key = NSEvent(cgEvent:event) else { return false }
+        // System events need not have a window; route them to the captured canvas directly.
+        return routeKeyboardEvent(key)
     }
     private func keyboard(_ event: NSEvent,down: Bool) {
         if !down { if let key = held.removeValue(forKey:event.keyCode) { session.key(key,down:false) }; return }
@@ -156,6 +207,7 @@ final class DesktopCanvas: NSView {
     }
     private func capture(_ event: NSEvent) {
         window?.makeFirstResponder(self)
+        startSystemKeyboardCapture()
         guard !session.captured else { return }
         session.captured = true; window?.invalidateCursorRects(for:self); capsLock = event.modifierFlags.contains(.capsLock)
         modifiers(event)

@@ -41,7 +41,7 @@ Enable a VNC server on your remote computer, then enter its hostname or IP addre
 
 Save computers for return visits. Credentials are requested only when the server needs them, with optional macOS Keychain storage. Advanced settings include username, SSH password/key/agent authentication, image quality, display sizing, clipboard sharing, and view-only mode. SSH host keys are verified by OpenSSH; compare the displayed fingerprint before trusting a new host. A changed SSH key is rejected.
 
-Click the remote screen to send keyboard shortcuts to it. **Control + Option + Escape** releases the keyboard. Session controls offer special keys, monitor selection, audio, fullscreen, connection details, and disconnect. Closing a session window disconnects it. Clipboard sending requires a focused, captured session; view-only disables local input and outbound clipboard.
+Click the remote screen to send keyboard shortcuts to it. **Control + Option + Escape** releases the keyboard. To send macOS system shortcuts such as Command–Space and Command–Tab, allow Portal in **System Settings → Privacy & Security → Accessibility**, then click the remote screen again. Capture ends when the session loses focus, disconnects, or enters view-only mode. Without permission, ordinary keys still work, but macOS keeps its system shortcuts. Session controls offer special keys, monitor selection, audio, fullscreen, connection details, and disconnect. Closing a session window disconnects it. Clipboard sending requires a focused, captured session; view-only disables local input and outbound clipboard.
 
 ## Compatibility
 

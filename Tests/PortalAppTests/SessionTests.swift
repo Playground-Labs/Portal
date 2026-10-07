@@ -53,6 +53,50 @@ import PortalVNC
         }
         try await until { self.firstPixel(session) == [0,255,0,0] }
     }
+    func testSystemKeyboardEventsReachPeerOnlyWhileControllingDesktop() async throws {
+        let (server,address) = try peer("canvas-system-input")
+        defer { if server.isRunning { server.terminate() } }
+        var computer = Computer(name:"Test",address:address); computer.acceptedInsecureAddress = address
+        let session = Session(computer); session.start(); defer { session.stop() }
+        try await until { session.image != nil }
+        let canvas = DesktopCanvas(session:session)
+        let window = CursorTestWindow(contentRect:NSRect(x:0,y:0,width:100,height:100),styleMask:.borderless,backing:.buffered,defer:false)
+        window.contentView = canvas; window.makeFirstResponder(canvas)
+        defer { canvas.releaseInput(); withExtendedLifetime(window) {} }
+        for down in [true,false] {
+            let event = try XCTUnwrap(CGEvent(keyboardEventSource:nil,virtualKey:9,keyDown:down))
+            event.flags = .maskCommand
+            XCTAssertFalse(canvas.handleSystemKeyboardEvent(type:event.type,event:event))
+        }
+        session.captured = true
+        for code:CGKeyCode in [49,48,12] { // Command-Space, Command-Tab, Command-Q
+            for down in [true,false] {
+                let event = try XCTUnwrap(CGEvent(keyboardEventSource:nil,virtualKey:code,keyDown:down))
+                event.flags = .maskCommand
+                XCTAssertTrue(canvas.handleSystemKeyboardEvent(type:event.type,event:event))
+            }
+            let release = try XCTUnwrap(CGEvent(keyboardEventSource:nil,virtualKey:55,keyDown:false))
+            release.type = .flagsChanged; release.flags = []
+            XCTAssertTrue(canvas.handleSystemKeyboardEvent(type:.flagsChanged,event:release))
+        }
+        try await until { self.firstPixel(session) == [0,255,0,0] }
+        let space = try XCTUnwrap(CGEvent(keyboardEventSource:nil,virtualKey:49,keyDown:true))
+        space.flags = .maskCommand
+        session.computer.viewOnly = true
+        XCTAssertFalse(canvas.handleSystemKeyboardEvent(type:.keyDown,event:space))
+        session.computer.viewOnly = false; session.connected = false
+        XCTAssertFalse(canvas.handleSystemKeyboardEvent(type:.keyDown,event:space))
+        session.connected = true
+        let escape = try XCTUnwrap(CGEvent(keyboardEventSource:nil,virtualKey:53,keyDown:true))
+        escape.flags = [.maskControl,.maskAlternate]
+        XCTAssertTrue(canvas.handleSystemKeyboardEvent(type:.keyDown,event:escape))
+        XCTAssertFalse(session.captured)
+        XCTAssertFalse(canvas.handleSystemKeyboardEvent(type:.keyDown,event:space))
+        session.captured = true
+        window.makeFirstResponder(nil)
+        XCTAssertFalse(session.captured)
+        XCTAssertFalse(canvas.handleSystemKeyboardEvent(type:.keyDown,event:space))
+    }
     func testConnectionLossClearsStaleScreenAndReportsAnEstablishedSessionDrop() async throws {
         let old = UserDefaults.standard.object(forKey:"autoReconnect")
         UserDefaults.standard.set(false,forKey:"autoReconnect")
