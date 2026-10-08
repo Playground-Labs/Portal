@@ -6,10 +6,10 @@ A native macOS VNC client with a quiet interface, soft amber controls, and one w
 
 ## Build and run
 
-Requires macOS 26 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. Tested on Apple silicon. The packager checks bundled libraries and raises the minimum OS if a dependency requires a newer version.
+Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. OpenSSL, Nettle, libjpeg-turbo, and LZO are built from checksum-pinned source targeting macOS 14, so the bundled app runs on macOS 14 or newer; it has been tested on Apple silicon. The packager sets the minimum OS to the highest requirement among its actual libraries.
 
 ```sh
-brew install cmake openssl jpeg-turbo nettle
+brew install cmake
 ./scripts/build-app.sh
 open dist/Portal.app
 ```
@@ -18,22 +18,34 @@ The build downloads a checksum-pinned LibVNCClient revision, applies the reviewe
 
 ## Signing and notarization
 
-Install your Apple Developer team's **Developer ID Application** certificate and private key in macOS Keychain. Then build with its full certificate name:
-
-```sh
-PORTAL_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/build-app.sh
-```
-
-Distribution signing enables hardened runtime and secure timestamps for Portal and its bundled libraries. Without this environment variable, builds remain locally ad-hoc signed.
-
-Store notarization credentials interactively in Keychain (never in the repository or shell command arguments), then submit the signed build:
+Local builds are ad-hoc signed. For a local Developer ID build, install the certificate in Keychain, store notary credentials once, then build and notarize:
 
 ```sh
 xcrun notarytool store-credentials portal-notary
+PORTAL_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+  PORTAL_SPARKLE_PUBLIC_KEY="<public key>" ./scripts/build-app.sh
 ./scripts/notarize-app.sh portal-notary
 ```
 
-The notarization script uploads the app to Apple, requires an Accepted result, staples and validates the ticket, checks Gatekeeper, and produces `dist/Portal-macOS.zip` plus its SHA-256 checksum. It does not publish a GitHub release. If interrupted, inspect `dist/notarization-result.json` and check the existing submission before uploading again.
+`notarize-app.sh` requires an Accepted result, staples, checks Gatekeeper, and writes `dist/Portal-macOS.zip` plus its SHA-256. If interrupted, inspect `dist/notarization-result.json` before resubmitting.
+
+## Releases and updates
+
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml` on `macos-26` (Xcode 26, Swift 6 tools). It builds with `PORTAL_VERSION=X.Y.Z` and `PORTAL_BUILD=<workflow run number>`, signs, notarizes, signs the zip for Sparkle, and publishes a release on this repository containing the zip, its SHA-256, and `appcast.xml` (the previous release's appcast plus the new entry). The app reads its feed from `https://github.com/Playground-Labs/Portal/releases/latest/download/appcast.xml`. The workflow uses the built-in `GITHUB_TOKEN`; no personal access token is needed.
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+One-time setup: run `./scripts/setup-release-secrets.sh` (needs `gh auth login` with admin access to the repository). It sets these Actions secrets and variables, piping values to `gh` so they never appear in arguments or output. Re-running is safe; pass `sparkle`, `notary`, or `developer-id` to redo one step.
+
+1. **Sparkle keys.** Generates (or reuses) the EdDSA key in your login Keychain with Sparkle 2.10.0's `generate_keys`, sets the secret `SPARKLE_PRIVATE_KEY` and the variable `SPARKLE_PUBLIC_KEY`. Losing this key means existing installs can no longer verify updates, so keep the Keychain item backed up.
+2. **App Store Connect API key** (Users and Access → Integrations → Team Keys, Developer role). Prompts for the `.p8` path, key ID, and issuer ID; sets `NOTARY_KEY_P8_BASE64`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`.
+3. **Developer ID certificate.** Exports only the *Developer ID Application* identity from your login Keychain (macOS asks for permission) into a `.p12` with a random password; sets `DEVELOPER_ID_P12_BASE64` and `DEVELOPER_ID_P12_PASSWORD`. The workflow takes the signing identity from the certificate.
+
+Build numbers come from the workflow run number and must keep increasing, because Sparkle compares them. Renaming or recreating the workflow resets the run number. Re-running a failed run keeps its build number. The release, zip, and appcast are published in one step; if that step fails after creating the release, delete the release before re-running. Each tag must be newer than the latest release. Push one tag at a time and wait for its run, since GitHub cancels queued runs beyond one. Don't delete published releases: later appcasts still list them.
+
+**GPL requirement:** Portal is GPL-2.0-or-later. Its source is public in this repository, and each release is built from its tagged source.
 
 ## Connect
 

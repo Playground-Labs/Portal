@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import PortalCore
+import Sparkle
 
 if let frameworks = Bundle.main.privateFrameworksURL,
    FileManager.default.fileExists(atPath: frameworks.appendingPathComponent("legacy.dylib").path) {
@@ -13,11 +14,14 @@ if CommandLine.arguments.contains("--ssh-askpass") { runAskpass() }
 final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     let model = AppModel()
     var home: NSWindow!
+    // ponytail: unsigned dev builds have no SUPublicEDKey, so the updater stays off there.
+    let updater = SPUStandardUpdaterController(startingUpdater: Bundle.main.object(forInfoDictionaryKey:"SUPublicEDKey") != nil, updaterDelegate: nil, userDriverDelegate: nil)
     func applicationDidFinishLaunching(_ notification:Notification) {
         NSApp.setActivationPolicy(.regular)
         let menu = NSMenu()
         let app = NSMenuItem(); let appMenu = NSMenu()
         appMenu.addItem(withTitle:"About Portal",action:#selector(about),keyEquivalent:"")
+        appMenu.addItem(withTitle:"Check for Updates…",action:#selector(SPUStandardUpdaterController.checkForUpdates(_:)),keyEquivalent:"").target = updater
         appMenu.addItem(.separator()); appMenu.addItem(withTitle:"Settings",action:#selector(settings),keyEquivalent:",")
         appMenu.addItem(.separator()); appMenu.addItem(withTitle:"Hide Portal",action:#selector(NSApplication.hide(_:)),keyEquivalent:"h")
         appMenu.addItem(withTitle:"Quit Portal",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
@@ -76,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     @objc func showHome() { home?.makeKeyAndOrderFront(nil) }
     @objc func settings() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalSettings"),object:nil) }
     @objc func addComputer() { showHome(); NotificationCenter.default.post(name:Notification.Name("PortalAddComputer"),object:nil) }
-    @objc func about() { PortalDialog.confirm("Portal",message:"Your 127.0.0.1 away from home\n\nVersion 0.1.0\nFree software, licensed under GPL-2.0-or-later.\nPowered by LibVNCClient.",cancel:false) }
+    @objc func about() { PortalDialog.confirm("Portal",message:"Your 127.0.0.1 away from home\n\nVersion \(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "")\nFree software, licensed under GPL-2.0-or-later.\nPowered by LibVNCClient.",cancel:false) }
     func applicationShouldHandleReopen(_ sender:NSApplication,hasVisibleWindows:Bool) -> Bool { showHome(); return true }
     func applicationWillTerminate(_ notification:Notification) { model.stopAll() }
     func application(_ application:NSApplication,open urls:[URL]) { for url in urls where url.scheme == "vnc" { do { let endpoint = try Endpoint(url.absoluteString); model.connect(Computer(name:endpoint.host,address:endpoint.address)) } catch { model.alert = error.localizedDescription } } }

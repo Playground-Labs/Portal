@@ -3,19 +3,21 @@ import PackageDescription
 import Foundation
 
 let native = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".build/native").path
-let brew = ProcessInfo.processInfo.environment["HOMEBREW_PREFIX"] ?? (FileManager.default.fileExists(atPath: "/opt/homebrew") ? "/opt/homebrew" : "/usr/local")
 let package = Package(
     name: "Portal",
-    platforms: [.macOS("26.0")],
+    platforms: [.macOS(.v14)],
     products: [.executable(name: "Portal", targets: ["Portal"])],
+    dependencies: [.package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.0")],
     targets: [
         .target(name: "PortalCore"),
         .target(name: "PortalVNC", publicHeadersPath: "include",
-                cSettings: [.unsafeFlags(["-I", native + "/include", "-I", brew + "/opt/openssl/include", "-I", brew + "/opt/nettle/include"])],
-                linkerSettings: [.unsafeFlags(["-L", native + "/lib", "-Xlinker", "-rpath", "-Xlinker", native + "/lib"]), .linkedLibrary("vncclient"), .linkedLibrary("iconv"), .unsafeFlags(["-L", brew + "/opt/openssl/lib", "-L", brew + "/opt/nettle/lib"]), .linkedLibrary("crypto"), .linkedLibrary("ssl"), .linkedLibrary("nettle")]),
-        .executableTarget(name: "Portal", dependencies: ["PortalCore", "PortalVNC"],
+                cSettings: [.unsafeFlags(["-I", native + "/include"])],
+                linkerSettings: [.unsafeFlags(["-L", native + "/lib", "-Xlinker", "-rpath", "-Xlinker", native + "/lib"]), .linkedLibrary("vncclient"), .linkedLibrary("iconv"), .linkedLibrary("crypto"), .linkedLibrary("ssl"), .linkedLibrary("nettle")]),
+        .executableTarget(name: "Portal", dependencies: ["PortalCore", "PortalVNC", .product(name: "Sparkle", package: "Sparkle")],
                           resources: [.copy("Resources/Fonts")],
-                          linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security")]),
+                          // Record SDK 14.0 so AppKit keeps the pre-macOS 26 design the UI is tuned for, whatever Xcode builds it.
+                          linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security"),
+                                           .unsafeFlags(["-Xlinker", "-platform_version", "-Xlinker", "macos", "-Xlinker", "14.0", "-Xlinker", "14.0"])]),
         .testTarget(name: "PortalAppTests", dependencies: ["Portal", "PortalCore"], resources: [.copy("session_server.py")]),
         .testTarget(name: "PortalCoreTests", dependencies: ["PortalCore"]),
         .testTarget(name: "PortalVNCTests", dependencies: ["PortalVNC"], resources: [.copy("rfb_server.py"), .copy("rsa_server.py")])
