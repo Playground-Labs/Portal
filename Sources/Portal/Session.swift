@@ -25,6 +25,7 @@ final class Session: ObservableObject {
     @Published var selectedScreen: UInt32?
     @Published var canResize = false
     @Published var captured = false
+    @Published var keyboardCaptureError = ""
     @Published var retrying = false
     var save: ((Computer, Bool) -> Void)?
     weak var window: NSWindow?

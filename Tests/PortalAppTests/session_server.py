@@ -86,10 +86,12 @@ def connection(listener, color):
                 peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,w,h,0)+bytes(pixel)*w*h)
             elif kind==4:
                 key = take(7)
-                if mode=='canvas-input':
+                if mode in ('canvas-input','canvas-system-input'):
                     input_events.append((key[0],int.from_bytes(key[3:],'big')))
                     expected=[(1,0xffeb),(1,ord('v')),(0,ord('v')),(0,0xffeb)]
-                    if len(input_events)==4:
+                    if mode=='canvas-system-input':
+                        expected=[event for key in (0x20,0xff09,ord('q')) for event in ((1,0xffeb),(1,key),(0,key),(0,0xffeb))]
+                    if len(input_events)==len(expected):
                         pixel=[0,255,0,0] if input_events==expected else [0,0,255,0]
                         peer.sendall(struct.pack('!BBHHHHHi',0,0,1,0,0,4,2,0)+bytes(pixel)*8)
 

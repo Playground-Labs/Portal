@@ -30,7 +30,9 @@ struct SessionView: View {
                             HStack { if !session.error.isEmpty { Button("Try Again") { session.start() }.buttonStyle(SoftButton(primary:true)) }; Button(session.retrying || session.error.isEmpty ? "Cancel" : "Close") { session.window?.close() }.buttonStyle(SoftButton()) }
                         }.padding(32).foregroundStyle(.white).colorScheme(.dark)
                     }
-                    if showHint && session.connected {
+                    if session.connected && session.captured && !session.keyboardCaptureError.isEmpty {
+                        VStack { Spacer(); keyboardPermission.padding(12).background(Color.portalBackground,in:RoundedRectangle(cornerRadius:7)).frame(maxWidth:420).padding(.bottom,24) }
+                    } else if showHint && session.connected {
                         VStack { Spacer(); Text("Control + Option + Escape releases your keyboard").font(.portal(size:12,weight:.medium)).padding(.horizontal,16).padding(.vertical,10).background(Color.portalBackground,in:RoundedRectangle(cornerRadius:7)).padding(.bottom,24) }.allowsHitTesting(false)
                     }
                 }
@@ -165,10 +167,21 @@ struct SessionView: View {
             PortalAction("Escape") { session.special([0xff1b]) }
             PortalAction("Print Screen") { session.special([0xff61]) }
         }
+        if !session.keyboardCaptureError.isEmpty { keyboardPermission }
         Text("Release keyboard: ⌃⌥Esc").font(.portal(size:11)).foregroundStyle(.secondary)
         Divider()
         PortalAction("Reconnect") { session.start() }
         PortalAction("Disconnect") { session.window?.close() }
+    }
+    private var keyboardPermission: some View {
+        VStack(alignment:.leading,spacing:8) {
+            Text(session.keyboardCaptureError).font(.portal(size:12)).fixedSize(horizontal:false,vertical:true)
+            Button("Open Accessibility Settings") {
+                session.window?.makeFirstResponder(nil)
+                _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String:true] as CFDictionary)
+                NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+            }.buttonStyle(SoftButton())
+        }
     }
     private func toolbarIcon(_ name:String) -> some View { Image(systemName:name).resizable().scaledToFit().frame(width:20,height:20).frame(width:32,height:32).contentShape(Rectangle()).foregroundStyle(.secondary) }
     private var toolbar: some View {
