@@ -88,6 +88,12 @@ jobs:
           fi
           ./scripts/build-app.sh
           # The appcast advertises macOS 14; a library built for a newer macOS must not reach those users.
+          # Package.swift pins the recorded SDK so AppKit keeps the design the UI is tuned for.
+          sdk="$(otool -l dist/Portal.app/Contents/MacOS/Portal | awk '/LC_BUILD_VERSION/{f=1} f&&$1=="sdk"{print $2; exit}')"
+          if [ "$sdk" != 14.0 ]; then
+            echo "Portal records SDK $sdk instead of 14.0, which changes the window design." >&2
+            exit 1
+          fi
           minimum="$(plutil -extract LSMinimumSystemVersion raw dist/Portal.app/Contents/Info.plist)"
           if [ "$minimum" != 14.0 ]; then
             echo "Bundled libraries raised the minimum macOS to $minimum." >&2
