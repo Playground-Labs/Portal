@@ -97,6 +97,19 @@ jobs:
             exit 1
           fi
 
+      - name: Launch smoke test
+        run: |
+          open dist/Portal.app
+          sleep 10
+          if ! pgrep -f 'dist/Portal.app/Contents/MacOS/Portal' > /dev/null; then
+            echo 'Portal.app exited within 10 seconds of launch.' >&2
+            for report in ~/Library/Logs/DiagnosticReports/Portal-*.ips; do
+              [ -f "$report" ] && head -c 4000 "$report" >&2
+            done
+            exit 1
+          fi
+          pkill -f 'dist/Portal.app/Contents/MacOS/Portal'
+
       - name: Notarize
         run: NOTARY_KEYCHAIN="$KEYCHAIN" ./scripts/notarize-app.sh portal-notary
 
