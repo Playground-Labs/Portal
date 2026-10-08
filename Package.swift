@@ -15,7 +15,9 @@ let package = Package(
                 linkerSettings: [.unsafeFlags(["-L", native + "/lib", "-Xlinker", "-rpath", "-Xlinker", native + "/lib"]), .linkedLibrary("vncclient"), .linkedLibrary("iconv"), .linkedLibrary("crypto"), .linkedLibrary("ssl"), .linkedLibrary("nettle")]),
         .executableTarget(name: "Portal", dependencies: ["PortalCore", "PortalVNC", .product(name: "Sparkle", package: "Sparkle")],
                           resources: [.copy("Resources/Fonts")],
-                          linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security")]),
+                          // Record SDK 14.0 so AppKit keeps the pre-macOS 26 design the UI is tuned for, whatever Xcode builds it.
+                          linkerSettings: [.linkedFramework("AppKit"), .linkedFramework("AVFoundation"), .linkedFramework("Security"),
+                                           .unsafeFlags(["-Xlinker", "-platform_version", "-Xlinker", "macos", "-Xlinker", "14.0", "-Xlinker", "14.0"])]),
         .testTarget(name: "PortalAppTests", dependencies: ["Portal", "PortalCore"], resources: [.copy("session_server.py")]),
         .testTarget(name: "PortalCoreTests", dependencies: ["PortalCore"]),
         .testTarget(name: "PortalVNCTests", dependencies: ["PortalVNC"], resources: [.copy("rfb_server.py"), .copy("rsa_server.py")])
