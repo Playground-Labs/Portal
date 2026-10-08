@@ -13,7 +13,7 @@ if ! [[ "$signature" == *"Authority=Developer ID Application:"* && "$signature" 
   exit 1
 fi
 ditto -c -k --keepParent "$app" dist/Portal-notarization.zip
-xcrun notarytool submit dist/Portal-notarization.zip --keychain-profile "$1" --wait --output-format json > dist/notarization-result.json
+xcrun notarytool submit dist/Portal-notarization.zip --keychain-profile "$1" ${NOTARY_KEYCHAIN:+--keychain "$NOTARY_KEYCHAIN"} --wait --output-format json > dist/notarization-result.json
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -26,4 +26,4 @@ xcrun stapler staple "$app"
 xcrun stapler validate "$app"
 spctl --assess --type execute --verbose=2 "$app"
 ditto -c -k --keepParent "$app" dist/Portal-macOS.zip
-shasum -a 256 dist/Portal-macOS.zip > dist/Portal-macOS.zip.sha256
+(cd dist && shasum -a 256 Portal-macOS.zip > Portal-macOS.zip.sha256)

@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+# One release at a time so each release builds on the previous appcast.
+concurrency: release
+
+env:
+  SPARKLE_URL: https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz
+  SPARKLE_SHA256: c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c
+
+jobs:
+  release:
+    # macos-26 ships Xcode 26 (Swift 6.2), satisfying swift-tools-version 6.0.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag $GITHUB_REF_NAME is not vX.Y.Z" >&2
+            exit 1
+          fi
+          # Sparkle orders updates by build number, which only increases, so tags must too.
+          latest="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)"
+          if [ -n "$latest" ] && { [ "${latest#v}" = "$version" ] || [ "$(printf '%s\n%s\n' "${latest#v}" "$version" | sort -V | tail -1)" != "$version" ]; }; then
+            echo "$GITHUB_REF_NAME must be newer than the latest release $latest." >&2
+            exit 1
+          fi
+          {
+            echo "PORTAL_VERSION=$version"
+            echo "PORTAL_BUILD=${{ github.run_number }}"
+            echo "KEYCHAIN=$RUNNER_TEMP/portal-signing.keychain-db"
+          } >> "$GITHUB_ENV"
+
+      - name: Install build tools
+        run: brew install cmake lzo
+
+      - name: Import Developer ID certificate and notary credentials
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          keychain_password="$(openssl rand -base64 24)"
+          echo "::add-mask::$keychain_password"
+          security create-keychain -p "$keychain_password" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$keychain_password" "$KEYCHAIN"
+
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -f pkcs12 -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user | xargs security list-keychains -d user -s "$KEYCHAIN"
+
+          identity="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')"
+          if [ -z "$identity" ]; then
+            echo 'No Developer ID Application identity in the imported certificate.' >&2
+            exit 1
+          fi
+          echo "PORTAL_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+          printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool store-credentials portal-notary \
+            --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --keychain "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/notary.p8"
+
+      - name: Build
+        env:
+          PORTAL_SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+        run: |
+          if [ -z "$PORTAL_SPARKLE_PUBLIC_KEY" ]; then
+            echo 'Set the SPARKLE_PUBLIC_KEY repository variable.' >&2
+            exit 1
+          fi
+          ./scripts/build-app.sh
+          # The appcast advertises macOS 14; a library built for a newer macOS must not reach those users.
+          minimum="$(plutil -extract LSMinimumSystemVersion raw dist/Portal.app/Contents/Info.plist)"
+          if [ "$minimum" != 14.0 ]; then
+            echo "Bundled libraries raised the minimum macOS to $minimum." >&2
+            exit 1
+          fi
+
+      - name: Notarize
+        run: NOTARY_KEYCHAIN="$KEYCHAIN" ./scripts/notarize-app.sh portal-notary
+
+      - name: Sign update for Sparkle
+        id: sparkle
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+        run: |
+          # A mismatched key pair would make every installed copy reject every update.
+          # Current keys are a 32-byte seed; older Sparkle keys are 96 bytes ending in the public key.
+          if [ "$(printf '%s' "$SPARKLE_PRIVATE_KEY" | base64 -d | wc -c | tr -d ' ')" = 96 ]; then
+            derived="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | base64 -d | tail -c32 | base64)"
+          else
+            derived="$(printf '302e020100300506032b657004220420%s' "$(printf '%s' "$SPARKLE_PRIVATE_KEY" | base64 -d | xxd -p -c64)" | xxd -r -p | .build/native/bin/openssl pkey -inform DER -pubout -outform DER | tail -c32 | base64)"
+          fi
+          if [ "$derived" != "$SPARKLE_PUBLIC_KEY" ]; then
+            echo 'SPARKLE_PRIVATE_KEY does not match the SPARKLE_PUBLIC_KEY variable.' >&2
+            exit 1
+          fi
+          curl -fsSL -o "$RUNNER_TEMP/sparkle.tar.xz" "$SPARKLE_URL"
+          echo "$SPARKLE_SHA256  $RUNNER_TEMP/sparkle.tar.xz" | shasum -a 256 -c -
+          mkdir "$RUNNER_TEMP/sparkle"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+          signature="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | "$RUNNER_TEMP/sparkle/bin/sign_update" --ed-key-file - dist/Portal-macOS.zip)"
+          echo "signature=$signature" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release and appcast
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNATURE: ${{ steps.sparkle.outputs.signature }}
+        run: |
+          tag="v$PORTAL_VERSION"
+          # Carry the appcast forward from the current latest release; start fresh only when there is no release yet.
+          if latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq '.tag_name' 2> "$RUNNER_TEMP/gh.err")"; then
+            if gh release view "$latest" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx appcast.xml; then
+              gh release download "$latest" --repo "$GITHUB_REPOSITORY" --pattern appcast.xml --dir .
+            else
+              echo "::warning::Latest release $latest has no appcast.xml; starting a new appcast."
+            fi
+          elif grep -q 'HTTP 404' "$RUNNER_TEMP/gh.err"; then
+            echo 'No release yet; starting a new appcast.'
+          else
+            cat "$RUNNER_TEMP/gh.err" >&2
+            exit 1
+          fi
+          python3 scripts/update-appcast.py appcast.xml "$PORTAL_VERSION" "$PORTAL_BUILD" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Portal-macOS.zip" "$SIGNATURE"
+          # One call, so a release never exists without its appcast.
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --latest --verify-tag \
+            --title "Portal $PORTAL_VERSION" --notes "Portal $PORTAL_VERSION (build $PORTAL_BUILD)" \
+            dist/Portal-macOS.zip dist/Portal-macOS.zip.sha256 appcast.xml
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/notary.p8"
