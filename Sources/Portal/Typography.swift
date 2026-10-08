@@ -2,7 +2,9 @@ import SwiftUI
 import CoreText
 
 func registerPortalFonts() {
-    for url in Bundle.module.urls(forResourcesWithExtension:"ttf",subdirectory:"Fonts") ?? [] {
+    // Older SwiftPM accessors never look in Contents/Resources and crash inside an app bundle.
+    let bundle = Bundle.main.url(forResource:"Portal_Portal",withExtension:"bundle").flatMap(Bundle.init(url:)) ?? Bundle.module
+    for url in bundle.urls(forResourcesWithExtension:"ttf",subdirectory:"Fonts") ?? [] {
         CTFontManagerRegisterFontsForURL(url as CFURL,.process,nil)
     }
 }
