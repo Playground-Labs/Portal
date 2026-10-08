@@ -17,7 +17,7 @@ shutil.copy2(root / 'scripts' / 'ssh-askpass.sh', contents / 'Resources' / 'ssh-
 info = {
     'CFBundleExecutable':'Portal', 'CFBundleIdentifier':'app.portal.vnc',
     'CFBundleIconFile':'Portal', 'CFBundleName':'Portal', 'CFBundleDisplayName':'Portal', 'CFBundlePackageType':'APPL',
-    'CFBundleShortVersionString':'0.1.0', 'CFBundleVersion':'1', 'LSMinimumSystemVersion':'14.0',
+    'CFBundleShortVersionString':'0.1.0', 'CFBundleVersion':'1', 'LSMinimumSystemVersion':'26.0',
     'NSHighResolutionCapable':True, 'NSPrincipalClass':'NSApplication',
     'NSLocalNetworkUsageDescription':'Portal discovers and connects to VNC computers on your local network.',
     'NSBonjourServices':['_rfb._tcp'],
@@ -66,7 +66,7 @@ for library in tuple(seen):
         subprocess.run(['chmod','u+w',str(target)],check=True)
         bundle(target,provider)
         subprocess.run(['install_name_tool','-add_rpath','@loader_path',str(target)],check=True)
-versions = [(14,0)]
+versions = [(26,0)]
 for binary in [executable, *(contents/'Frameworks').iterdir()]:
     load_commands = subprocess.check_output(['otool','-l',str(binary)],text=True)
     versions += [tuple(map(int,version.split('.'))) for version in re.findall(r'\bminos\s+(\d+(?:\.\d+)+)',load_commands)]

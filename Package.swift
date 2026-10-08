@@ -6,7 +6,7 @@ let native = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendi
 let brew = ProcessInfo.processInfo.environment["HOMEBREW_PREFIX"] ?? (FileManager.default.fileExists(atPath: "/opt/homebrew") ? "/opt/homebrew" : "/usr/local")
 let package = Package(
     name: "Portal",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS("26.0")],
     products: [.executable(name: "Portal", targets: ["Portal"])],
     targets: [
         .target(name: "PortalCore"),

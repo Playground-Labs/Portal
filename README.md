@@ -6,7 +6,7 @@ A native macOS VNC client with a quiet interface, soft amber controls, and one w
 
 ## Build and run
 
-Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. The current bundled build requires macOS 26 and has been tested on Apple silicon. The packager sets the minimum OS to the highest requirement among its actual libraries. Building for older macOS versions requires dependencies built for those systems.
+Requires macOS 26 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. Tested on Apple silicon. The packager checks bundled libraries and raises the minimum OS if a dependency requires a newer version.
 
 ```sh
 brew install cmake openssl jpeg-turbo nettle
