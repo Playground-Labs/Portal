@@ -9,9 +9,10 @@ Portal is GPL-2.0-or-later. Distribution must comply with the licenses of the ac
 - **OpenSSL**, Apache-2.0. https://www.openssl.org/source/ and https://github.com/openssl/openssl/blob/master/LICENSE.txt
 - **libjpeg-turbo**, IJG, BSD-style and zlib licenses, depending on component. https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/LICENSE.md
 - **LZO**, GPL-2.0-or-later when selected by the local LibVNCClient build. https://www.oberhumer.com/opensource/lzo/
+- **Sparkle** 2.10.0, MIT (includes ed25519, zlib-style license). https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE
 - System libraries, including zlib, are loaded from macOS and are not redistributed by Portal.
 
-Before distributing binaries, include each bundled library’s exact license and corresponding source as required. The local development bundle is not a signed/notarized public release.
+Portal’s own source is public in this repository; each release is built from its tagged source. Before distributing binaries, include each bundled library’s exact license and corresponding source as required. The local development bundle is not a signed/notarized public release.
 
 ## Fonts
 
