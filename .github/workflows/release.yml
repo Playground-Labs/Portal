@@ -43,7 +43,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Install build tools
-        run: brew install cmake lzo
+        run: brew install cmake
 
       - name: Import Developer ID certificate and notary credentials
         env:
@@ -91,6 +91,9 @@ jobs:
           minimum="$(plutil -extract LSMinimumSystemVersion raw dist/Portal.app/Contents/Info.plist)"
           if [ "$minimum" != 14.0 ]; then
             echo "Bundled libraries raised the minimum macOS to $minimum." >&2
+            for binary in dist/Portal.app/Contents/MacOS/Portal dist/Portal.app/Contents/Frameworks/*; do
+              [ -f "$binary" ] && echo "$binary: $(otool -l "$binary" | awk '/minos/{print $2; exit}')" >&2
+            done
             exit 1
           fi
 

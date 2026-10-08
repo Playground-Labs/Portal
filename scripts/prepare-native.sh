@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 revision=42494999e6492aaab9c1db785ecd293ef10b3aed
 checksum=0d5c7d5c6ac3b4df83cdaa3c2494a7bfa340a0f3ac4fec82b863ba8fd33e5044
-if [ -f .build/native/.portal-revision ] && [ "$(cat .build/native/.portal-revision)" = "$revision-auth-transport-v13" ]; then exit 0; fi
+if [ -f .build/native/.portal-revision ] && [ "$(cat .build/native/.portal-revision)" = "$revision-auth-transport-v14" ]; then exit 0; fi
 rm -rf .build/native .build/native-build .build/jpeg-build
-command -v cmake >/dev/null || { echo 'Install build dependencies: brew install cmake lzo'; exit 1; }
+command -v cmake >/dev/null || { echo 'Install build dependencies: brew install cmake'; exit 1; }
 prefix="$(brew --prefix)"
 mkdir -p .build/downloads
 native="$PWD/.build/native"
@@ -26,6 +26,8 @@ cmake -S .build/downloads/libjpeg-turbo-3.2.0 -B .build/jpeg-build -DCMAKE_BUILD
   -DCMAKE_INSTALL_PREFIX="$native" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DENABLE_STATIC=OFF
 cmake --build .build/jpeg-build --parallel
 cmake --install .build/jpeg-build
+fetch https://www.oberhumer.com/opensource/lzo/download/lzo-2.10.tar.gz c0f892943208266f9b6543b3ae308fab6284c5c90e627931446fb49b4221a072 lzo-2.10
+(cd .build/downloads/lzo-2.10 && ./configure --prefix="$native" --enable-shared --disable-static && make -j"$(sysctl -n hw.ncpu)" && make install)
 archive=.build/downloads/libvnc.tar.gz
 curl --fail --location --retry 3 "https://codeload.github.com/LibVNC/libvncserver/tar.gz/$revision" -o "$archive"
 echo "$checksum  $archive" | shasum -a 256 -c -
@@ -42,4 +44,4 @@ cmake -S "$source_dir" -B .build/native-build \
   -DWITH_FFMPEG=OFF -DWITH_XCB=OFF -DBUILD_SHARED_LIBS=ON
 cmake --build .build/native-build --parallel
 cmake --install .build/native-build
-printf '%s' "$revision-auth-transport-v13" > .build/native/.portal-revision
+printf '%s' "$revision-auth-transport-v14" > .build/native/.portal-revision

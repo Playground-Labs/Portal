@@ -6,10 +6,10 @@ A native macOS VNC client with a quiet interface, soft amber controls, and one w
 
 ## Build and run
 
-Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. OpenSSL, Nettle, and libjpeg-turbo are built from checksum-pinned source targeting macOS 14, so the bundled app runs on macOS 14 or newer; it has been tested on Apple silicon. The packager sets the minimum OS to the highest requirement among its actual libraries.
+Requires macOS 14 or newer, Xcode with Swift 6, Homebrew, Python 3, and CMake. OpenSSL, Nettle, libjpeg-turbo, and LZO are built from checksum-pinned source targeting macOS 14, so the bundled app runs on macOS 14 or newer; it has been tested on Apple silicon. The packager sets the minimum OS to the highest requirement among its actual libraries.
 
 ```sh
-brew install cmake lzo
+brew install cmake
 ./scripts/build-app.sh
 open dist/Portal.app
 ```
